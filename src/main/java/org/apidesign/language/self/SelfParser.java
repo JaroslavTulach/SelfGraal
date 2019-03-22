@@ -30,6 +30,7 @@ enum SelfTokenId implements TokenId {
     COMMENT(null, "comment"),
     LPAREN("(", "separator"),
     RPAREN(")", "separator"),
+    BAR("|", "separator"),
     ERROR(null, "error");
 
 
@@ -114,6 +115,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                 case '=': case '~': case '/': case '?': case '<':
                 case '>': case ',': case ';': case '|': case '‘':
                 case '\\':
+                    boolean justOne = true;
                     for (;;) {
                         switch (input.read()) {
                             case '!': case '@': case '#': case '$': case '%':
@@ -121,6 +123,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                             case '=': case '~': case '/': case '?': case '<':
                             case '>': case ',': case ';': case '|': case '‘':
                             case '\\':
+                                justOne = false;
                                 continue;
                             case '0': case '1': case '2': case '3': case '4':
                             case '5': case '6': case '7': case '8': case '9':
@@ -130,6 +133,9 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                                 }
                         }
                         input.backup(1);
+                        if (justOne && ch == '|') {
+                            return token(SelfTokenId.BAR);
+                        }
                         return token(SelfTokenId.OPERATOR);
                     }
                 case '_':

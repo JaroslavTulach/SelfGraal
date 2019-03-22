@@ -78,7 +78,7 @@ public class SelfParserTest {
 
     @Test
     public void operators() {
-        String text = "   && ++ * +=-";
+        String text = "   && ++ * +=- |";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -89,6 +89,8 @@ public class SelfParserTest {
         assertNextToken(SelfTokenId.OPERATOR, seq).text("*");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.OPERATOR, seq).text("+=-");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.BAR, seq);
         assertFalse("At the end of input", seq.moveNext());
     }
 

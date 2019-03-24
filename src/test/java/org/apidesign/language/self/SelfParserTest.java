@@ -1,7 +1,10 @@
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.source.Source;
+import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
@@ -140,6 +143,23 @@ public class SelfParserTest {
         assertNextToken(SelfTokenId.COMMENT, seq).text("\"multiline\ncomment\"");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertFalse("At the end of input", seq.moveNext());
+    }
+
+    @Test
+    public void parseEmptyObject() {
+        Source s = Source.newBuilder("Self", "()", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
     }
 
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {

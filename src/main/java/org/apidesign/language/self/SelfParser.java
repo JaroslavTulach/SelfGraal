@@ -1,12 +1,16 @@
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.source.Source;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.Token;
+import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenId;
+import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.spi.lexer.LanguageHierarchy;
 import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerInput;
@@ -14,7 +18,42 @@ import org.netbeans.spi.lexer.LexerRestartInfo;
 import org.netbeans.spi.lexer.TokenFactory;
 
 final class SelfParser {
+    public static void parse(Source s, Consumer<Object> registrar) {
+        TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
+        while (seq.moveNext()) {
+            final SelfTokenId id = seq.token().id();
+            if (id == SelfTokenId.LPAREN) {
+                parseObject(seq, registrar);
+            }
+        }
+    }
 
+    static boolean parseObject(TokenSequence<SelfTokenId> seq, Consumer<Object> registrar) {
+        assert seq.token().id() == SelfTokenId.LPAREN;
+        if (!seq.moveNext()) {
+            return false;
+        }
+        if (seq.token().id() == SelfTokenId.BAR) {
+            for (;;) {
+                if (!seq.moveNext()) {
+                    return false;
+                }
+                if (seq.token().id() == SelfTokenId.BAR) {
+                    break;
+                }
+            }
+        }
+        for (;;) {
+            if (seq.token().id() == SelfTokenId.RPAREN) {
+                registrar.accept(new Object());
+                break;
+            }
+            if (!seq.moveNext()) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 enum SelfTokenId implements TokenId {

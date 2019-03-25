@@ -1,0 +1,17 @@
+language: java
+
+jdk:
+    - openjdk11
+
+install:
+  - env
+  - if [ "$_system_name" == "OSX" ]; then S=macos; D=/Contents/Home/; else S=linux; D=/; fi
+  - wget https://github.com/oracle/graal/releases/download/vm-1.0.0-rc7/graalvm-ce-1.0.0-rc7-$S-amd64.tar.gz
+  - tar fxz graalvm-ce-1.0.0-rc7-$S-amd64.tar.gz
+  
+script:
+  - mvn clean install
+  - JAVA_HOME=graalvm-ce-1.0.0-rc7$D mvn clean install
+matrix:
+    include:
+        - os: linux

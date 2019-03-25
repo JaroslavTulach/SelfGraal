@@ -14,7 +14,7 @@
         <repository>
             <id>netbeans</id>
             <name>NetBeans</name>
-            <url>http://bits.netbeans.org/maven2/</url>
+            <url>https://repository.apache.org/content/repositories/orgapachenetbeans-1012/</url>
         </repository>
     </repositories>
     <dependencies>
@@ -27,7 +27,7 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-lexer</artifactId>
-            <version>RELEASE82</version>
+            <version>RELEASE100</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

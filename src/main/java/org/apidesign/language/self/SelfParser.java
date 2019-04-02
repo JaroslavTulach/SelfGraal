@@ -1,11 +1,18 @@
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.source.Source;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
+import org.apidesign.language.self.PELexer.LexerList;
+import static org.apidesign.language.self.PEParser.*;
+import org.apidesign.language.self.SelfLexer.BasicNode;
+import static org.apidesign.language.self.SelfLexer.concat;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
@@ -18,41 +25,186 @@ import org.netbeans.spi.lexer.LexerRestartInfo;
 import org.netbeans.spi.lexer.TokenFactory;
 
 final class SelfParser {
-    public static void parse(Source s, Consumer<Object> registrar) {
-        TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
-        while (seq.moveNext()) {
-            final SelfTokenId id = seq.token().id();
-            if (id == SelfTokenId.LPAREN) {
-                parseObject(seq, registrar);
-            }
-        }
+    private static final PEParser PARSER;
+    static {
+        PARSER = new PEParser();
+        // create the rules
+        Rule<SelfLexer.BasicNode> program = PARSER.rule("program");
+        Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
+        Rule<SelfLexer.BasicNode[]> exprlist = PARSER.rule("exprlist");
+        Rule<SelfLexer.BasicNode[]> varlist = PARSER.rule("varlist");
+        Rule<SelfLexer.BasicNode> expression = PARSER.rule("expression");
+        Rule<SelfLexer.BasicNode> term = PARSER.rule("term");
+        Rule<SelfLexer.BasicNode> factor = PARSER.rule("factor");
+        Rule<SelfLexer.BasicNode> vara = PARSER.rule("vara");
+        Rule<SelfLexer.BasicNode> string = PARSER.rule("string");
+        Rule<SelfLexer.RelOp> relop = PARSER.rule("relop");
+
+        // define the rules
+        // program: line {line}
+        program.define(seq(statement, rep(statement),
+                (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
+
+        Element<SelfLexer.BasicNode> objectStatement = seq(
+                ref(SelfTokenId.LPAREN), ref(SelfTokenId.RPAREN),
+                (TokenId t, SelfTokenId u) -> {
+                    return new SelfLexer.BasicNode("()") {
+                        @Override
+                        void print(Consumer<Object> registrar) {
+                            registrar.accept(new Object());
+                        }
+                    };
+                }
+        );
+
+        /*
+        line.define(seq(opt(ref(NUMBER)), statement, ref(CR),
+                        (n, s, c) -> s));
+
+        Element<BasicNode> printStatement = seq(ref(PRINT), exprlist,
+                        (p, e) -> new BasicNode("print", e));
+        Element<BasicNode> ifCondition = seq(expression, relop, expression,
+                        (a, r, b) -> new BasicNode(r.toString(), a, b));
+        Element<BasicNode> ifStatement = seq(ref(IF), ifCondition, opt(ref(THEN)), statement,
+                        (i, cond, t, s) -> new BasicNode("if", cond, s));
+        Element<BasicNode> gotoStatement = seq(ref(GOTO), ref(NUMBER),
+                        (g, n) -> new BasicNode("goto"));
+        Element<BasicNode> inputStatement = seq(ref(INPUT), varlist,
+                        (i, v) -> new BasicNode("input", v));
+        Element<BasicNode> assignStatement = seq(opt(ref(LET)), vara, ref(EQUALS), expression,
+                        (l, v, s, e) -> new BasicNode(l.isPresent() ? "let" : "assing", v, e));
+        Element<BasicNode> gosubStatement = seq(ref(GOSUB), expression,
+                        (g, e) -> new BasicNode("gosub", e));
+        Element<BasicNode> returnStatement = ref(RETURN,
+                        t -> new BasicNode("return"));
+        Element<BasicNode> clearStatement = ref(CLEAR,
+                        t -> new BasicNode("clear"));
+        Element<BasicNode> listStatement = ref(LIST,
+                        t -> new BasicNode("list"));
+        Element<BasicNode> runStatement = ref(RUN,
+                        t -> new BasicNode("run"));
+        Element<BasicNode> endStatement = ref(END,
+                        t -> new BasicNode("end"));
+        statement.define(alt(printStatement, ifStatement, gotoStatement, inputStatement, assignStatement, gosubStatement, returnStatement, clearStatement, listStatement, runStatement, endStatement));
+         */
+        statement.define(alt(objectStatement));
+
+        /*
+        Element<LexerList<BasicNode>> exprlistRep = rep(seq(ref(COMMA), alt(string, expression), PEParser::selectSecond));
+        exprlist.define(seq(alt(string, expression), exprlistRep, PEParser::concat));
+
+        Element<LexerList<BasicNode>> varlistRep = rep(seq(ref(COMMA), vara, PEParser::selectSecond));
+        varlist.define(seq(vara, varlistRep, PEParser::concat));
+
+        Element<LexerList<PEParser.TermFactor>> expressionRep = rep(seq(alt(ref(PLUS, t -> "plus"), ref(MINUS, t -> "minus")), term, PEParser.TermFactor::new));
+        Element<Optional<Boolean>> plusOrMinus = opt(alt(ref(PLUS, t -> false), ref(MINUS, t -> true)));
+        expression.define(seq(plusOrMinus, term, expressionRep,
+                        (pm, first, additionalTerms) -> {
+                            BasicNode result = first;
+                            if (pm.orElse(false)) {
+                                result = new BasicNode("unaryMinus", result);
+                            }
+                            for (PEParser.TermFactor tf : additionalTerms) {
+                                result = new BasicNode(tf.op, result, tf.operand);
+                            }
+                            return result;
+                        }));
+
+        term.define(seq(factor, rep(seq(alt(ref(MUL, t -> "mul"), ref(DIV, t -> "div")), factor, PEParser.TermFactor::new)),
+                        (first, additionalFactors) -> {
+                            BasicNode result = first;
+                            for (PEParser.TermFactor tf : additionalFactors) {
+                                result = new BasicNode(tf.op, result, tf.operand);
+                            }
+                            return result;
+                        }));
+        factor.define(alt(vara, ref(NUMBER, t -> new BasicNode("number"))));
+        vara.define(alt(ref(NAME, t -> new BasicNode("name")), string));
+        string.define(ref(STRING, t -> new BasicNode("string")));
+        relop.define(alt(
+                        seq(ref(LESS_THAN, t -> RelOp.LessThan), opt(alt(ref(LARGER_THAN, t -> RelOp.NotEquals), ref(EQUALS, t -> RelOp.LessThanEquals))), RelOp::choose),
+                        seq(ref(LARGER_THAN, t -> RelOp.LargerThan), opt(alt(ref(LESS_THAN, t -> RelOp.NotEquals), ref(EQUALS, t -> RelOp.LargerThanEquals))), RelOp::choose),
+                        ref(EQUALS, t -> RelOp.Equals),
+                        ref(PLUS, t -> RelOp.Plus),
+                        ref(MINUS, t -> RelOp.Minus)));
+         */
+        PARSER.initialize(program);
+
     }
 
-    static boolean parseObject(TokenSequence<SelfTokenId> seq, Consumer<Object> registrar) {
-        assert seq.token().id() == SelfTokenId.LPAREN;
-        if (!seq.moveNext()) {
-            return false;
-        }
-        if (seq.token().id() == SelfTokenId.BAR) {
-            for (;;) {
-                if (!seq.moveNext()) {
-                    return false;
-                }
-                if (seq.token().id() == SelfTokenId.BAR) {
-                    break;
-                }
+    public static void parse(Source s, Consumer<Object> registrar) {
+        TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
+        class SeqLexer implements PELexer {
+            private final Object[] self = new Object[] { this };
+            {
+                boolean b = seq.moveNext();
+                assert b : "Moved to start";
+            }
+
+            @Override
+            public Object[] asArgumentsArray() {
+                return self;
+            }
+
+            @Override
+            public byte peek(ConditionProfile seenEof) {
+                return (byte) seq.token().id().ordinal();
+            }
+
+            @Override
+            public void push(Object t) {
+                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            }
+
+            @Override
+            public String position() {
+                return "at: " + seq.offset();
+            }
+
+            @Override
+            public void resetStackPointer(int pointer) {
+                seq.move(pointer);
+            }
+
+            @Override
+            public byte nextToken(ConditionProfile seenEof) {
+                byte token = peek(seenEof);
+                seq.moveNext();
+                return token;
+            }
+
+            @Override
+            public int currentTokenId() {
+                return seq.token().id().ordinal();
+            }
+
+            @Override
+            public int getStackPointer() {
+                return seq.offset();
+            }
+
+            @Override
+            public LexerList getStackList(int pointer) {
+                return new LexerList() {
+                    @Override
+                    public int size() {
+                        return 0;
+                    }
+
+                    @Override
+                    public SelfLexer.BasicNode get(int i) {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public String tokenNames(int token) {
+                return "tokenNames " + SelfTokenId.values()[token];
             }
         }
-        for (;;) {
-            if (seq.token().id() == SelfTokenId.RPAREN) {
-                registrar.accept(new Object());
-                break;
-            }
-            if (!seq.moveNext()) {
-                return false;
-            }
-        }
-        return true;
+        BasicNode bn = (BasicNode) PARSER.parse(new SeqLexer());
+        bn.print(registrar);
     }
 }
 
@@ -239,11 +391,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             ch = input.read();
             switch (ch) {
                 case '\\':
-                    if (backslash) {
-                        backslash = false;
-                    } else {
-                        backslash = true;
-                    }
+                    backslash = !backslash;
                     break;
                 case '\'':
                     if (!backslash) {
@@ -358,6 +506,78 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             return token(id);
         }
     }
+    static class BasicNode {
 
+        private final String name;
+        private final BasicNode[] children;
 
+        BasicNode(String name, BasicNode... children) {
+            this.name = name;
+            this.children = children;
+        }
+
+        BasicNode(String name, List<BasicNode> children) {
+            this.name = name;
+            this.children = children.toArray(new BasicNode[children.size()]);
+        }
+
+        public void print(int level) {
+            for (int i = 0; i < level; i++) {
+                System.out.print("  ");
+            }
+            System.out.println(name);
+            for (BasicNode child : children) {
+                child.print(level + 1);
+            }
+        }
+
+        void print(Consumer<Object> registrar) {
+            for (BasicNode child : children) {
+                child.print(registrar);
+            }
+        }
+    }
+
+    public enum RelOp {
+        LessThan,
+        LessThanEquals,
+        LargerThan,
+        LargerThanEquals,
+        Equals,
+        NotEquals,
+        Plus,
+        Minus;
+
+        static RelOp choose(RelOp a, Optional<RelOp> b) {
+            return b.orElse(a);
+        }
+    }
+
+    static class TermFactor {
+
+        private final String op;
+        private final BasicNode operand;
+
+        TermFactor(String op, BasicNode operand) {
+            this.op = op;
+            this.operand = operand;
+        }
+    }
+
+    public static <A, B> A selectFirst(A a, @SuppressWarnings("unused") B b) {
+        return a;
+    }
+
+    public static <A, B> B selectSecond(@SuppressWarnings("unused") A a, B b) {
+        return b;
+    }
+
+    public static BasicNode[] concat(BasicNode first, LexerList<BasicNode> rest) {
+        BasicNode[] result = new BasicNode[rest.size() + 1];
+        result[0] = first;
+        for (int i = 0; i < rest.size(); i++) {
+            result[i + 1] = rest.get(i);
+        }
+        return result;
+    }
 }

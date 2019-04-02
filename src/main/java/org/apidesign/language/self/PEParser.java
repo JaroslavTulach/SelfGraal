@@ -61,6 +61,7 @@ import com.oracle.truffle.api.nodes.RootNode;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import static org.apidesign.language.self.Alternative.error;
 import org.apidesign.language.self.PELexer.LexerList;
+import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
 
 abstract class Element<T> extends Node {
@@ -75,7 +76,8 @@ abstract class Element<T> extends Node {
 
     public abstract T consume(PELexer lexer);
 
-    public final boolean canStartWith(byte token) {
+    public final boolean canStartWith(Token<? extends TokenId> token) {
+        int id = token.id().ordinal();
         if (singleToken == -1L) {
             CompilerDirectives.transferToInterpreterAndInvalidate();
             if (Long.bitCount(firstA) + Long.bitCount(firstB) == 1) {
@@ -90,15 +92,15 @@ abstract class Element<T> extends Node {
             }
         }
         if (singleToken != 0) {
-            return token == singleToken;
+            return id == singleToken;
         }
 
-        if (token < 64) {
-            assert token > 0;
-            return (firstA & (1L << token)) != 0;
+        if (id < 64) {
+            assert id > 0;
+            return (firstA & (1L << id)) != 0;
         } else {
-            assert token < 128;
-            return (firstB & (1L << (token - 64))) != 0;
+            assert id < 128;
+            return (firstB & (1L << (id - 64))) != 0;
         }
     }
 }
@@ -209,16 +211,6 @@ final class Rule<T> extends Element<T> {
         // do nothing - already initialized
     }
 
-    public void printFirst(PELexer lexer) {
-        System.out.print(name + ": ");
-        for (int i = 0; i < 128; i++) {
-            if (canStartWith((byte) i)) {
-                System.out.print(lexer.tokenNames(i) + " ");
-            }
-        }
-        System.out.println();
-    }
-
     public String getName() {
         return name;
     }
@@ -283,9 +275,9 @@ final class Sequence3<T, A, B, C> extends SequenceBase<T> {
     @Child private Element<A> a;
     @Child private Element<B> b;
     @Child private Element<C> c;
-    private final PEParser.Function3<A, B, C, T> action;
+    private final PEParser.Function3<? super A, ? super B, ? super C, T> action;
 
-    Sequence3(PEParser.Function3<A, B, C, T> action, Element<A> a, Element<B> b, Element<C> c) {
+    Sequence3(PEParser.Function3<? super A, ? super B, ? super C, T> action, Element<A> a, Element<B> b, Element<C> c) {
         this.action = action;
         this.a = a;
         this.b = b;
@@ -308,9 +300,9 @@ final class Sequence4<T, A, B, C, D> extends SequenceBase<T> {
     @Child private Element<B> b;
     @Child private Element<C> c;
     @Child private Element<D> d;
-    private final PEParser.Function4<A, B, C, D, T> action;
+    private final PEParser.Function4<? super A, ? super B, ? super C, ? super D, T> action;
 
-    Sequence4(PEParser.Function4<A, B, C, D, T> action, Element<A> a, Element<B> b, Element<C> c, Element<D> d) {
+    Sequence4(PEParser.Function4<? super A, ? super B, ? super C, ? super D, T> action, Element<A> a, Element<B> b, Element<C> c, Element<D> d) {
         this.action = action;
         this.a = a;
         this.b = b;
@@ -357,7 +349,7 @@ final class Alternative<T> extends Element<T> {
     @Override
     @ExplodeLoop(kind = LoopExplosionKind.FULL_EXPLODE_UNTIL_RETURN)
     public T consume(PELexer lexer) {
-        byte lookahead = lexer.peek(seenEof);
+        Token<? extends TokenId> lookahead = lexer.peek(seenEof);
         for (Element<? extends T> element : options) {
             if (element.canStartWith(lookahead)) {
                 // matched
@@ -403,7 +395,7 @@ final class Repetition<T, ListT, R> extends Element<R> {
     public R consume(PELexer lexer) {
         ListT list = createList.get();
         while (true) {
-            byte lookahead = lexer.peek(seenEof);
+            Token<? extends TokenId> lookahead = lexer.peek(seenEof);
             if (!element.canStartWith(lookahead)) {
                 return createResult.apply(list);
             }
@@ -435,7 +427,7 @@ final class StackRepetition<T> extends Element<LexerList<T>> {
     public LexerList<T> consume(PELexer lexer) {
         int pointer = lexer.getStackPointer();
         while (true) {
-            byte lookahead = lexer.peek(seenEof);
+            Token<? extends TokenId> lookahead = lexer.peek(seenEof);
             if (!element.canStartWith(lookahead)) {
                 LexerList<T> list = lexer.getStackList(pointer);
                 lexer.resetStackPointer(pointer);
@@ -471,7 +463,7 @@ final class OptionalElement<T, R> extends Element<R> {
 
     @Override
     public R consume(PELexer lexer) {
-        byte lookahead = lexer.peek(seenEof);
+        Token<? extends TokenId> lookahead = lexer.peek(seenEof);
         if (element.canStartWith(lookahead)) {
             return hasValueAction.apply(element.consume(lexer));
         }
@@ -509,8 +501,8 @@ final class TokenReference<T> extends Element<T> {
     @Override
     public T consume(PELexer lexer) {
         int tokenId = lexer.currentTokenId();
-        byte actualToken;
-        if ((actualToken = lexer.nextToken(seenEof)) != token.ordinal()) {
+        Token<? extends TokenId> actualToken;
+        if ((actualToken = lexer.nextToken(seenEof)).id() != token) {
             CompilerDirectives.transferToInterpreter();
             error("expecting " + lexer.tokenNames(token) + ", got " + lexer.tokenNames(actualToken) + " at " + lexer.position());
         }
@@ -542,7 +534,7 @@ public final class PEParser {
         }
     }
 
-    public static <T> Alternative<T> alt(Element<T>... options) {
+    public static <T> Element<T> alt(Element<T>... options) {
         replaceRules(options);
         return new Alternative<>(options);
     }
@@ -551,11 +543,11 @@ public final class PEParser {
         return new Sequence2<>(action, replaceRule(a), replaceRule(b));
     }
 
-    public static <A, B, C, R> Element<R> seq(Element<A> a, Element<B> b, Element<C> c, Function3<A, B, C, R> action) {
+    public static <A, B, C, R> Element<R> seq(Element<A> a, Element<B> b, Element<C> c, Function3<? super A, ? super B, ? super C, R> action) {
         return new Sequence3<>(action, replaceRule(a), replaceRule(b), replaceRule(c));
     }
 
-    public static <A, B, C, D, R> Element<R> seq(Element<A> a, Element<B> b, Element<C> c, Element<D> d, Function4<A, B, C, D, R> action) {
+    public static <A, B, C, D, R> Element<R> seq(Element<A> a, Element<B> b, Element<C> c, Element<D> d, Function4<? super A, ? super B, ? super C, ? super D, R> action) {
         return new Sequence4<>(action, replaceRule(a), replaceRule(b), replaceRule(c), replaceRule(d));
     }
 

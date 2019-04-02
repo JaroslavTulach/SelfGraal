@@ -162,6 +162,23 @@ public class SelfParserTest {
         assertNotNull("Object created", c.obj);
     }
 
+    @Test
+    public void parseEmptyObjectWithSlots() {
+        Source s = Source.newBuilder("Self", "( | | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+    }
+
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {
         assertTrue("There is more tokens", seq.moveNext());
         Token<SelfTokenId> token = seq.token();

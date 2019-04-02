@@ -41,13 +41,14 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.profiles.ConditionProfile;
+import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
 
 interface PELexer<T> {
 
     public Object[] asArgumentsArray();
 
-    public byte peek(ConditionProfile seenEof);
+    public Token<? extends TokenId> peek(ConditionProfile seenEof);
     
     public void push(T t);
 
@@ -55,7 +56,7 @@ interface PELexer<T> {
 
     public void resetStackPointer(int pointer);
 
-    public byte nextToken(ConditionProfile seenEof);
+    public Token<? extends TokenId> nextToken(ConditionProfile seenEof);
 
     public int currentTokenId();
 
@@ -66,6 +67,9 @@ interface PELexer<T> {
     public String tokenNames(int token);
     public default String tokenNames(TokenId token) {
         return tokenNames(token.ordinal());
+    }
+    public default String tokenNames(Token<? extends TokenId> token) {
+        return tokenNames(token.id().ordinal());
     }
 
     interface LexerList<T> {

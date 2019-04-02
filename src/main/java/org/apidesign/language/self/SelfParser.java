@@ -46,7 +46,12 @@ final class SelfParser {
                 (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
 
         Element<SelfLexer.BasicNode> objectStatement = seq(
-                ref(SelfTokenId.LPAREN), ref(SelfTokenId.RPAREN),
+                ref(SelfTokenId.LPAREN), alt(
+                    seq(ref(SelfTokenId.BAR), ref(SelfTokenId.BAR), (arg0, arg1) -> {
+                        return null;
+                    }),
+                    ref(SelfTokenId.RPAREN)
+                ),
                 (TokenId t, SelfTokenId u) -> {
                     return new SelfLexer.BasicNode("()") {
                         @Override
@@ -56,6 +61,31 @@ final class SelfParser {
                     };
                 }
         );
+
+        /*
+        Element<SelfTokenId> slot = alt(ref(SelfTokenId.IDENTIFIER));
+        Element<SelfTokenId> slots = slot;
+        Element<Optional<SelfTokenId>> slotsSection = seq(ref(SelfTokenId.BAR), opt(slots), ref(SelfTokenId.BAR), (a, b, c) -> {
+            return b;
+        });
+
+        Element<SelfLexer.BasicNode> objectStatement = seq(
+                ref(SelfTokenId.LPAREN), slotsSection, ref(SelfTokenId.RPAREN),
+                (TokenId t, Optional<SelfTokenId> defSlots, SelfTokenId u) -> {
+                    return new SelfLexer.BasicNode("()") {
+                        @Override
+                        void print(Consumer<Object> registrar) {
+                            final HashMap<Object, Object> map = new HashMap<>();
+                            if (defSlots.isPresent()) {
+                                map.put(defSlots.get().primaryCategory(), map);
+                            }
+                            registrar.accept(map);
+                        }
+                    };
+                }
+        );
+
+        */
 
         /*
         line.define(seq(opt(ref(NUMBER)), statement, ref(CR),
@@ -137,8 +167,7 @@ final class SelfParser {
         class SeqLexer implements PELexer {
             private final Object[] self = new Object[] { this };
             {
-                boolean b = seq.moveNext();
-                assert b : "Moved to start";
+                nextTokenMove();
             }
 
             @Override
@@ -147,8 +176,8 @@ final class SelfParser {
             }
 
             @Override
-            public byte peek(ConditionProfile seenEof) {
-                return (byte) seq.token().id().ordinal();
+            public Token<SelfTokenId> peek(ConditionProfile seenEof) {
+                return seq.token();
             }
 
             @Override
@@ -167,10 +196,18 @@ final class SelfParser {
             }
 
             @Override
-            public byte nextToken(ConditionProfile seenEof) {
-                byte token = peek(seenEof);
-                seq.moveNext();
+            public Token<SelfTokenId> nextToken(ConditionProfile seenEof) {
+                Token<SelfTokenId> token = peek(seenEof);
+                nextTokenMove();
                 return token;
+            }
+
+            private void nextTokenMove() {
+                while (seq.moveNext()) {
+                    if (seq.token().id() != SelfTokenId.WHITESPACE) {
+                        break;
+                    }
+                }
             }
 
             @Override
@@ -222,6 +259,7 @@ enum SelfTokenId implements TokenId {
     LPAREN("(", "separator"),
     RPAREN(")", "separator"),
     BAR("|", "separator"),
+    DOT(".", "separator"),
     ERROR(null, "error");
 
 
@@ -324,8 +362,11 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                                 }
                         }
                         input.backup(1);
-                        if (justOne && ch == '|') {
-                            return token(SelfTokenId.BAR);
+                        if (justOne) {
+                            switch (ch) {
+                                case '|': return token(SelfTokenId.BAR);
+                                case '.': return token(SelfTokenId.DOT);
+                            }
                         }
                         return token(SelfTokenId.OPERATOR);
                     }

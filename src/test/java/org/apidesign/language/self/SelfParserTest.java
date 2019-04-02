@@ -1,6 +1,7 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.source.Source;
+import java.util.Map;
 import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -99,11 +100,13 @@ public class SelfParserTest {
 
     @Test
     public void numbers() {
-        String text = "\r123 3.14 1272.34e+15 1e10 1272.34e-15 16r27fe -5";
+        String text = "\r123 . 3.14 1272.34e+15 1e10 1272.34e-15 16r27fe -5";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.NUMBER, seq).text("123");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.DOT, seq).text(".");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.NUMBER, seq).text("3.14");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -177,6 +180,47 @@ public class SelfParserTest {
         SelfParser.parse(s, c);
 
         assertNotNull("Object created", c.obj);
+    }
+
+    @Test
+    public void parseEmptyObjectWithOneSlot() {
+        Source s = Source.newBuilder("Self", "( | x = 's' | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of x is s", "'s'", map.get("x"));
+    }
+
+    @Test
+    public void parseEmptyObjectWithTwoSlots() {
+        Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of x is s", "'s'", map.get("x"));
+        assertEquals("Value of y is s", "3", map.get("y"));
     }
 
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {

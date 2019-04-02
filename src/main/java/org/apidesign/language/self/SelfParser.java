@@ -2,7 +2,9 @@ package org.apidesign.language.self;
 
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.source.Source;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -45,18 +47,51 @@ final class SelfParser {
         program.define(seq(statement, rep(statement),
                 (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
 
+        Element<Token<SelfTokenId>> value = alt(ref(SelfTokenId.IDENTIFIER), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER));
+
+        Element<Slot> slot = alt(
+                seq(
+                    ref(SelfTokenId.IDENTIFIER), alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), value,
+                    (a, b, c) -> {
+                        boolean mutable = b.id() != SelfTokenId.EQUAL;
+                        return new Slot(a.text(), mutable, c);
+                    }
+                ),
+                ref(SelfTokenId.ARGUMENT, (t) -> Slot.argument(t.text()))
+        );
+
+        final Element<Slot> dotAndSlot = seq(ref(SelfTokenId.DOT), slot, (dot, slot1) -> {
+            return slot1;
+        });
+        Element<ArrayList<Slot>> extraSlots = rep(dotAndSlot, () -> new ArrayList<Slot>(), (l, v) -> {
+            l.add(v);
+            return l;
+        }, (t) -> t);
+
+        Element<List<Slot>> slots = alt(
+            ref(SelfTokenId.BAR, t -> Collections.emptyList()),
+            seq(slot, extraSlots, ref(SelfTokenId.BAR), (t, m, u) -> {
+                m.add(0, t);
+                return m;
+            })
+        );
+
         Element<SelfLexer.BasicNode> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), ref(SelfTokenId.BAR), (arg0, arg1) -> {
-                        return null;
+                    seq(ref(SelfTokenId.BAR), slots, (bar, slts) -> {
+                        return slts;
                     }),
-                    ref(SelfTokenId.RPAREN)
+                    ref(SelfTokenId.RPAREN, (rparen) -> Collections.<Slot>emptyList())
                 ),
-                (TokenId t, SelfTokenId u) -> {
+                (t, u) -> {
                     return new SelfLexer.BasicNode("()") {
                         @Override
                         void print(Consumer<Object> registrar) {
-                            registrar.accept(new Object());
+                            Map<String, Object> obj = new HashMap<>();
+                            for (Slot s : u) {
+                                obj.put(s.id.toString(), s.value.text().toString());
+                            }
+                            registrar.accept(obj);
                         }
                     };
                 }
@@ -187,7 +222,7 @@ final class SelfParser {
 
             @Override
             public String position() {
-                return "at: " + seq.offset();
+                return "at: " + seq.offset() + ": " + seq.subSequence(seq.offset()).toString();
             }
 
             @Override
@@ -211,11 +246,6 @@ final class SelfParser {
             }
 
             @Override
-            public int currentTokenId() {
-                return seq.token().id().ordinal();
-            }
-
-            @Override
             public int getStackPointer() {
                 return seq.offset();
             }
@@ -236,12 +266,29 @@ final class SelfParser {
             }
 
             @Override
-            public String tokenNames(int token) {
-                return "tokenNames " + SelfTokenId.values()[token];
+            public String tokenNames(TokenId id) {
+                return "token " + id;
             }
         }
         BasicNode bn = (BasicNode) PARSER.parse(new SeqLexer());
         bn.print(registrar);
+    }
+
+    private static final class Slot {
+
+        private static Slot argument(CharSequence text) {
+            return new Slot(text, false, null);
+        }
+
+        private final CharSequence id;
+        private final boolean mutable;
+        private final Token<SelfTokenId> value;
+
+        public Slot(CharSequence id, boolean mutable, Token<SelfTokenId> value) {
+            this.id = id;
+            this.mutable = mutable;
+            this.value = value;
+        }
     }
 }
 
@@ -260,6 +307,8 @@ enum SelfTokenId implements TokenId {
     RPAREN(")", "separator"),
     BAR("|", "separator"),
     DOT(".", "separator"),
+    EQUAL("=", "separator"),
+    ARROW("<-", "separator"),
     ERROR(null, "error");
 
 
@@ -334,9 +383,11 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                 case ')':
                     return token(SelfTokenId.RPAREN);
 
+                case '.':
+                    return token(SelfTokenId.DOT);
+
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                case '.':
                     return finishIntOrFloatLiteral(ch);
 
                 case '!': case '@': case '#': case '$': case '%':
@@ -365,6 +416,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                         if (justOne) {
                             switch (ch) {
                                 case '|': return token(SelfTokenId.BAR);
+                                case '=': return token(SelfTokenId.EQUAL);
                                 case '.': return token(SelfTokenId.DOT);
                             }
                         }

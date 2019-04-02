@@ -58,18 +58,14 @@ interface PELexer<T> {
 
     public Token<? extends TokenId> nextToken(ConditionProfile seenEof);
 
-    public int currentTokenId();
-
     public int getStackPointer();
     
     public LexerList<T> getStackList(int pointer);
 
-    public String tokenNames(int token);
-    public default String tokenNames(TokenId token) {
-        return tokenNames(token.ordinal());
-    }
+    public String tokenNames(TokenId token);
+
     public default String tokenNames(Token<? extends TokenId> token) {
-        return tokenNames(token.id().ordinal());
+        return tokenNames(token.id());
     }
 
     interface LexerList<T> {

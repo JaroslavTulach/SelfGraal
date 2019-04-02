@@ -471,12 +471,12 @@ final class OptionalElement<T, R> extends Element<R> {
     }
 }
 
-final class TokenReference<T> extends Element<T> {
-    private final TokenId token;
-    private final PEParser.TokenFunction<T> action;
+final class TokenReference<TID extends TokenId, T> extends Element<T> {
+    private final TID token;
+    private final PEParser.TokenFunction<TID, T> action;
     private final ConditionProfile seenEof = ConditionProfile.createBinaryProfile();
 
-    TokenReference(TokenId token, PEParser.TokenFunction<T> action) {
+    TokenReference(TID token, PEParser.TokenFunction<TID, T> action) {
         this.token = token;
         this.action = action;
     }
@@ -500,13 +500,13 @@ final class TokenReference<T> extends Element<T> {
 
     @Override
     public T consume(PELexer lexer) {
-        int tokenId = lexer.currentTokenId();
+        Token<? extends TokenId> tokenId = lexer.peek(seenEof);
         Token<? extends TokenId> actualToken;
         if ((actualToken = lexer.nextToken(seenEof)).id() != token) {
             CompilerDirectives.transferToInterpreter();
             error("expecting " + lexer.tokenNames(token) + ", got " + lexer.tokenNames(actualToken) + " at " + lexer.position());
         }
-        return action.apply(tokenId);
+        return action.apply((Token<TID>) tokenId);
     }
 }
 
@@ -555,7 +555,7 @@ public final class PEParser {
         return new StackRepetition<>(replaceRule(element));
     }
 
-    public static <T, ListT, R> Repetition<T, ListT, R> rep(Element<T> element, Supplier<ListT> createList, BiFunction<ListT, T, ListT> addToList, Function<ListT, R> createResult) {
+    public static <T, ListT, R> Element<R> rep(Element<T> element, Supplier<ListT> createList, BiFunction<ListT, T, ListT> addToList, Function<ListT, R> createResult) {
         return new Repetition<>(replaceRule(element), createList, addToList, createResult);
     }
 
@@ -563,12 +563,12 @@ public final class PEParser {
         return new OptionalElement<>(replaceRule(element), v -> Optional.of(v), () -> Optional.empty());
     }
 
-    public static <T extends TokenId> Element<T> ref(T token) {
-        return new TokenReference<>(token, t -> token);
+    public static <T extends TokenId> Element<Token<T>> ref(T id) {
+        return ref(id, (t) -> t);
     }
 
-    public static <T> Element<T> ref(TokenId token, TokenFunction<T> action) {
-        return new TokenReference<>(token, action);
+    public static <T extends TokenId, R> Element<R> ref(T id, TokenFunction<T, R> action) {
+        return new TokenReference<>(id, action);
     }
 
     public <T> Rule<T> rule(String name) {
@@ -589,8 +589,8 @@ public final class PEParser {
         R apply(A a, B b, C c, D d, E e);
     }
 
-    public interface TokenFunction<R> {
-        R apply(int tokenId);
+    public interface TokenFunction<T extends TokenId, R> {
+        R apply(Token<T> token);
     }
 
     PEParser() {

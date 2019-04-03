@@ -71,7 +71,7 @@ final class SelfParser {
 
         Element<Slot> slot = alt(
                 seq(
-                    slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, statement),
+                    slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, ref(SelfTokenId.IDENTIFIER), statement),
                     (a, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
                         return new Slot(a.text(), mutable, c);
@@ -119,17 +119,17 @@ final class SelfParser {
         );
         statement.define(alt(objectStatement));
 
-        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.IDENTIFIER), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectStatement));
+        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectStatement));
 
         unaryMessage.define(seq(opt(alt(expression, ref(SelfTokenId.RESEND))), ref(SelfTokenId.IDENTIFIER), (t, u) -> {
             return null;
         }));
 
-        expression.define(alt(constant /*, unaryMessage , binaryMessage, keywordMessage*/, seq(ref(SelfTokenId.LPAREN), expression, ref(SelfTokenId.RPAREN), (l, e, r) -> {
+        expression.define(alt(constant, ref(SelfTokenId.IDENTIFIER) /*, unaryMessage , binaryMessage, keywordMessage*/, seq(ref(SelfTokenId.LPAREN), expression, ref(SelfTokenId.RPAREN), (l, e, r) -> {
             return e;
         })));
 
-        exprlist.define(seq(alt(ref(SelfTokenId.OPERATOR), constant), rep(alt(ref(SelfTokenId.OPERATOR), constant), () -> {
+        exprlist.define(seq(alt(ref(SelfTokenId.OPERATOR), constant, ref(SelfTokenId.IDENTIFIER)), rep(alt(ref(SelfTokenId.OPERATOR), ref(SelfTokenId.IDENTIFIER), constant), () -> {
             return null;
         }, (l, e) -> {
             return null;

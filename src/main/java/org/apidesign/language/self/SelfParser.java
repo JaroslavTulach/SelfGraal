@@ -35,7 +35,7 @@ final class SelfParser {
         Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
         Rule<SelfLexer.BasicNode[]> exprlist = PARSER.rule("exprlist");
         Rule<SelfLexer.BasicNode[]> varlist = PARSER.rule("varlist");
-        Rule<SelfLexer.BasicNode> expression = PARSER.rule("expression");
+        Rule<Object> expression = PARSER.rule("expression");
         Rule<SelfLexer.BasicNode> term = PARSER.rule("term");
         Rule<SelfLexer.BasicNode> factor = PARSER.rule("factor");
         Rule<SelfLexer.BasicNode> vara = PARSER.rule("vara");
@@ -96,9 +96,10 @@ final class SelfParser {
 
         Element<SelfLexer.BasicNode> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), slots, (bar, slts) -> {
+                    seq(ref(SelfTokenId.BAR), slots, opt(expression), (bar, slts, expr) -> {
                         return slts;
                     }),
+                    seq(expression, ref(SelfTokenId.RPAREN), (expr, rparen) -> Collections.<Slot>emptyList()),
                     ref(SelfTokenId.RPAREN, (rparen) -> Collections.<Slot>emptyList())
                 ),
                 (t, u) -> {
@@ -171,6 +172,15 @@ final class SelfParser {
         statement.define(alt(printStatement, ifStatement, gotoStatement, inputStatement, assignStatement, gosubStatement, returnStatement, clearStatement, listStatement, runStatement, endStatement));
          */
         statement.define(alt(objectStatement));
+        expression.define(seq(alt(ref(SelfTokenId.OPERATOR), value), rep(alt(ref(SelfTokenId.OPERATOR), value), () -> {
+            return null;
+        }, (l, e) -> {
+            return null;
+        }, (r) -> {
+            return null;
+        }), (arg0, arg1) -> {
+            return null;
+        }));
 
         /*
         Element<LexerList<BasicNode>> exprlistRep = rep(seq(ref(COMMA), alt(string, expression), PEParser::selectSecond));

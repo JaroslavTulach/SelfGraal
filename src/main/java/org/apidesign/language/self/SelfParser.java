@@ -49,9 +49,27 @@ final class SelfParser {
 
         Element<Token<SelfTokenId>> value = alt(ref(SelfTokenId.IDENTIFIER), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER));
 
+        Element<Token<SelfTokenId>> slotId = alt(
+                ref(SelfTokenId.IDENTIFIER),
+                seq(ref(SelfTokenId.KEYWORD), alt(
+                        seq(
+                            ref(SelfTokenId.IDENTIFIER), rep(
+                                seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, id) -> {
+                                    return key;
+                                })
+                            ), (id, rest) -> {
+                            return id;
+                        })
+//                        rep(ref(SelfTokenId.KEYWORD))
+                ), (key, alt) -> {
+                    return key;
+                }),
+                seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> op)
+        );
+
         Element<Slot> slot = alt(
                 seq(
-                    ref(SelfTokenId.IDENTIFIER), alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), value,
+                    slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(value, statement),
                     (a, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
                         return new Slot(a.text(), mutable, c);
@@ -89,7 +107,7 @@ final class SelfParser {
                         void print(Consumer<Object> registrar) {
                             Map<String, Object> obj = new HashMap<>();
                             for (Slot s : u) {
-                                obj.put(s.id.toString(), s.value.text().toString());
+                                obj.put(s.id.toString(), s.valueToString());
                             }
                             registrar.accept(obj);
                         }
@@ -228,6 +246,7 @@ final class SelfParser {
             @Override
             public void resetStackPointer(int pointer) {
                 seq.move(pointer);
+                seq.moveNext();
             }
 
             @Override
@@ -269,6 +288,11 @@ final class SelfParser {
             public String tokenNames(TokenId id) {
                 return "token " + id;
             }
+
+            @Override
+            public String toString() {
+                return position();
+            }
         }
         BasicNode bn = (BasicNode) PARSER.parse(new SeqLexer());
         bn.print(registrar);
@@ -282,12 +306,19 @@ final class SelfParser {
 
         private final CharSequence id;
         private final boolean mutable;
-        private final Token<SelfTokenId> value;
+        private final Object value;
 
-        public Slot(CharSequence id, boolean mutable, Token<SelfTokenId> value) {
+        public Slot(CharSequence id, boolean mutable, Object value) {
             this.id = id;
             this.mutable = mutable;
             this.value = value;
+        }
+
+        private Object valueToString() {
+            if (value instanceof Token) {
+                return ((Token)value).text().toString();
+            }
+            return value.toString();
         }
     }
 }

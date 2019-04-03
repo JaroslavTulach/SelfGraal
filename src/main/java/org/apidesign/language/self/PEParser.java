@@ -518,7 +518,7 @@ public final class PEParser {
     private final ArrayList<Rule<?>> rules = new ArrayList<>();
     @CompilationFinal private Rule<?> root;
 
-    private static <T> void replaceRules(Element<T>[] elements) {
+    private static <T> void replaceRules(Element<? extends T>[] elements) {
         for (int i = 0; i < elements.length; i++) {
             if (elements[i] instanceof Rule) {
                 elements[i] = new CallRule<>((Rule<T>) elements[i]);
@@ -534,7 +534,7 @@ public final class PEParser {
         }
     }
 
-    public static <T> Element<T> alt(Element<T>... options) {
+    public static <T> Element<T> alt(Element<? extends T>... options) {
         replaceRules(options);
         return new Alternative<>(options);
     }

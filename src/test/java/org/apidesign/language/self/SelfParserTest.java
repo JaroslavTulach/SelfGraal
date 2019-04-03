@@ -203,6 +203,26 @@ public class SelfParserTest {
     }
 
     @Test
+    public void parseConstantFn() {
+        Source s = Source.newBuilder("Self", "( | id: n = 'e' | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of id is object", "'e'", map.get("id:"));
+    }
+
+    @Test
     public void parseEmptyObjectWithTwoSlots() {
         Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
         class Collect implements Consumer<Object> {

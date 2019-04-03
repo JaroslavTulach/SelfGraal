@@ -33,8 +33,12 @@ final class SelfParser {
         // create the rules
         Rule<SelfLexer.BasicNode> program = PARSER.rule("program");
         Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
-        Rule<SelfLexer.BasicNode[]> exprlist = PARSER.rule("exprlist");
+        Rule<Object> exprlist = PARSER.rule("exprlist");
         Rule<SelfLexer.BasicNode[]> varlist = PARSER.rule("varlist");
+        Rule<Object> constant = PARSER.rule("constant");
+        Rule<Object> unaryMessage = PARSER.rule("unaryMessage");
+        Rule<Object> binaryMessage = PARSER.rule("binaryMessage");
+        Rule<Object> keywordMessage = PARSER.rule("keywordMessage");
         Rule<Object> expression = PARSER.rule("expression");
         Rule<SelfLexer.BasicNode> term = PARSER.rule("term");
         Rule<SelfLexer.BasicNode> factor = PARSER.rule("factor");
@@ -46,8 +50,6 @@ final class SelfParser {
         // program: line {line}
         program.define(seq(statement, rep(statement),
                 (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
-
-        Element<Token<SelfTokenId>> value = alt(ref(SelfTokenId.IDENTIFIER), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER));
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
@@ -69,7 +71,7 @@ final class SelfParser {
 
         Element<Slot> slot = alt(
                 seq(
-                    slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(value, statement),
+                    slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, statement),
                     (a, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
                         return new Slot(a.text(), mutable, c);
@@ -96,10 +98,10 @@ final class SelfParser {
 
         Element<SelfLexer.BasicNode> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), slots, opt(expression), (bar, slts, expr) -> {
+                    seq(ref(SelfTokenId.BAR), slots, opt(exprlist), (bar, slts, expr) -> {
                         return slts;
                     }),
-                    seq(expression, ref(SelfTokenId.RPAREN), (expr, rparen) -> Collections.<Slot>emptyList()),
+                    seq(exprlist, ref(SelfTokenId.RPAREN), (expr, rparen) -> Collections.<Slot>emptyList()),
                     ref(SelfTokenId.RPAREN, (rparen) -> Collections.<Slot>emptyList())
                 ),
                 (t, u) -> {
@@ -115,64 +117,19 @@ final class SelfParser {
                     };
                 }
         );
-
-        /*
-        Element<SelfTokenId> slot = alt(ref(SelfTokenId.IDENTIFIER));
-        Element<SelfTokenId> slots = slot;
-        Element<Optional<SelfTokenId>> slotsSection = seq(ref(SelfTokenId.BAR), opt(slots), ref(SelfTokenId.BAR), (a, b, c) -> {
-            return b;
-        });
-
-        Element<SelfLexer.BasicNode> objectStatement = seq(
-                ref(SelfTokenId.LPAREN), slotsSection, ref(SelfTokenId.RPAREN),
-                (TokenId t, Optional<SelfTokenId> defSlots, SelfTokenId u) -> {
-                    return new SelfLexer.BasicNode("()") {
-                        @Override
-                        void print(Consumer<Object> registrar) {
-                            final HashMap<Object, Object> map = new HashMap<>();
-                            if (defSlots.isPresent()) {
-                                map.put(defSlots.get().primaryCategory(), map);
-                            }
-                            registrar.accept(map);
-                        }
-                    };
-                }
-        );
-
-        */
-
-        /*
-        line.define(seq(opt(ref(NUMBER)), statement, ref(CR),
-                        (n, s, c) -> s));
-
-        Element<BasicNode> printStatement = seq(ref(PRINT), exprlist,
-                        (p, e) -> new BasicNode("print", e));
-        Element<BasicNode> ifCondition = seq(expression, relop, expression,
-                        (a, r, b) -> new BasicNode(r.toString(), a, b));
-        Element<BasicNode> ifStatement = seq(ref(IF), ifCondition, opt(ref(THEN)), statement,
-                        (i, cond, t, s) -> new BasicNode("if", cond, s));
-        Element<BasicNode> gotoStatement = seq(ref(GOTO), ref(NUMBER),
-                        (g, n) -> new BasicNode("goto"));
-        Element<BasicNode> inputStatement = seq(ref(INPUT), varlist,
-                        (i, v) -> new BasicNode("input", v));
-        Element<BasicNode> assignStatement = seq(opt(ref(LET)), vara, ref(EQUALS), expression,
-                        (l, v, s, e) -> new BasicNode(l.isPresent() ? "let" : "assing", v, e));
-        Element<BasicNode> gosubStatement = seq(ref(GOSUB), expression,
-                        (g, e) -> new BasicNode("gosub", e));
-        Element<BasicNode> returnStatement = ref(RETURN,
-                        t -> new BasicNode("return"));
-        Element<BasicNode> clearStatement = ref(CLEAR,
-                        t -> new BasicNode("clear"));
-        Element<BasicNode> listStatement = ref(LIST,
-                        t -> new BasicNode("list"));
-        Element<BasicNode> runStatement = ref(RUN,
-                        t -> new BasicNode("run"));
-        Element<BasicNode> endStatement = ref(END,
-                        t -> new BasicNode("end"));
-        statement.define(alt(printStatement, ifStatement, gotoStatement, inputStatement, assignStatement, gosubStatement, returnStatement, clearStatement, listStatement, runStatement, endStatement));
-         */
         statement.define(alt(objectStatement));
-        expression.define(seq(alt(ref(SelfTokenId.OPERATOR), value), rep(alt(ref(SelfTokenId.OPERATOR), value), () -> {
+
+        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.IDENTIFIER), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectStatement));
+
+        unaryMessage.define(seq(opt(alt(expression, ref(SelfTokenId.RESEND))), ref(SelfTokenId.IDENTIFIER), (t, u) -> {
+            return null;
+        }));
+
+        expression.define(alt(constant /*, unaryMessage , binaryMessage, keywordMessage*/, seq(ref(SelfTokenId.LPAREN), expression, ref(SelfTokenId.RPAREN), (l, e, r) -> {
+            return e;
+        })));
+
+        exprlist.define(seq(alt(ref(SelfTokenId.OPERATOR), constant), rep(alt(ref(SelfTokenId.OPERATOR), constant), () -> {
             return null;
         }, (l, e) -> {
             return null;
@@ -181,48 +138,7 @@ final class SelfParser {
         }), (arg0, arg1) -> {
             return null;
         }));
-
-        /*
-        Element<LexerList<BasicNode>> exprlistRep = rep(seq(ref(COMMA), alt(string, expression), PEParser::selectSecond));
-        exprlist.define(seq(alt(string, expression), exprlistRep, PEParser::concat));
-
-        Element<LexerList<BasicNode>> varlistRep = rep(seq(ref(COMMA), vara, PEParser::selectSecond));
-        varlist.define(seq(vara, varlistRep, PEParser::concat));
-
-        Element<LexerList<PEParser.TermFactor>> expressionRep = rep(seq(alt(ref(PLUS, t -> "plus"), ref(MINUS, t -> "minus")), term, PEParser.TermFactor::new));
-        Element<Optional<Boolean>> plusOrMinus = opt(alt(ref(PLUS, t -> false), ref(MINUS, t -> true)));
-        expression.define(seq(plusOrMinus, term, expressionRep,
-                        (pm, first, additionalTerms) -> {
-                            BasicNode result = first;
-                            if (pm.orElse(false)) {
-                                result = new BasicNode("unaryMinus", result);
-                            }
-                            for (PEParser.TermFactor tf : additionalTerms) {
-                                result = new BasicNode(tf.op, result, tf.operand);
-                            }
-                            return result;
-                        }));
-
-        term.define(seq(factor, rep(seq(alt(ref(MUL, t -> "mul"), ref(DIV, t -> "div")), factor, PEParser.TermFactor::new)),
-                        (first, additionalFactors) -> {
-                            BasicNode result = first;
-                            for (PEParser.TermFactor tf : additionalFactors) {
-                                result = new BasicNode(tf.op, result, tf.operand);
-                            }
-                            return result;
-                        }));
-        factor.define(alt(vara, ref(NUMBER, t -> new BasicNode("number"))));
-        vara.define(alt(ref(NAME, t -> new BasicNode("name")), string));
-        string.define(ref(STRING, t -> new BasicNode("string")));
-        relop.define(alt(
-                        seq(ref(LESS_THAN, t -> RelOp.LessThan), opt(alt(ref(LARGER_THAN, t -> RelOp.NotEquals), ref(EQUALS, t -> RelOp.LessThanEquals))), RelOp::choose),
-                        seq(ref(LARGER_THAN, t -> RelOp.LargerThan), opt(alt(ref(LESS_THAN, t -> RelOp.NotEquals), ref(EQUALS, t -> RelOp.LargerThanEquals))), RelOp::choose),
-                        ref(EQUALS, t -> RelOp.Equals),
-                        ref(PLUS, t -> RelOp.Plus),
-                        ref(MINUS, t -> RelOp.Minus)));
-         */
         PARSER.initialize(program);
-
     }
 
     public static void parse(Source s, Consumer<Object> registrar) {
@@ -336,9 +252,11 @@ final class SelfParser {
 enum SelfTokenId implements TokenId {
 
     WHITESPACE(null, "whitespace"),
-    IDENTIFIER(null, null),
-    KEYWORD(null, null),
-    ARGUMENT(null, null),
+    IDENTIFIER(null, "identifier"),
+    SELF(null, "identifier"),
+    RESEND(null, "identifier"),
+    KEYWORD(null, "identifier"),
+    ARGUMENT(null, "identifier"),
     OPERATOR(null, null),
     NUMBER(null, "number"),
     STRING(null, "string"),
@@ -635,7 +553,11 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                 id = SelfTokenId.KEYWORD;
             } else {
                 input.backup(1); // backup the extra char (or EOF)
-                id = SelfTokenId.IDENTIFIER;
+                switch (input.readText().toString()) {
+                    case "self": id = SelfTokenId.SELF; break;
+                    case "resend": id = SelfTokenId.RESEND; break;
+                    default: id = SelfTokenId.IDENTIFIER;
+                }
             }
             return token(id);
         }

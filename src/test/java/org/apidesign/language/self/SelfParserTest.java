@@ -32,7 +32,7 @@ public class SelfParserTest {
 
     @Test
     public void identifiers() {
-        String text = "    i _IntAdd cloud9 m a_point \n\t\r NotAnIdent";
+        String text = "    i _IntAdd cloud9 resend m a_point \n\t\r NotAnIdent self";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -42,11 +42,15 @@ public class SelfParserTest {
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("cloud9");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.RESEND, seq);
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("m");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("a_point");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.ERROR, seq).text("NotAnIdent");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.SELF, seq);
         assertFalse("At the end of input", seq.moveNext());
     }
 

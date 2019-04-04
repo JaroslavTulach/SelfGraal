@@ -42,9 +42,16 @@ package org.apidesign.language.self;
 
 import org.graalvm.polyglot.Context;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class SelfLanguageTest {
+    @Before
+    public void registerInGraalVMLanguagePath() {
+        final String path = System.getProperty("java.class.path");
+        System.setProperty("truffle.class.path.append", path);
+    }
+
     @Test
     public void evalTrue() {
         Object yes = Context.create().eval("Self", "( 1 < 3 )").asBoolean();

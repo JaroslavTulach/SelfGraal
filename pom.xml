@@ -9,6 +9,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
+        <graalvm.version>1.0.0-rc14</graalvm.version>
     </properties>
     <repositories>
         <repository>
@@ -33,12 +34,12 @@
         <dependency>
             <groupId>org.graalvm.truffle</groupId>
             <artifactId>truffle-api</artifactId>
-            <version>1.0.0-rc12</version>
+            <version>${graalvm.version}</version>
         </dependency>
         <dependency>
             <groupId>org.graalvm.truffle</groupId>
             <artifactId>truffle-dsl-processor</artifactId>
-            <version>1.0.0-rc12</version>
+            <version>${graalvm.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

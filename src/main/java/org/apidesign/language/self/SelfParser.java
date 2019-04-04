@@ -10,10 +10,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apidesign.language.self.PELexer.LexerList;
 import static org.apidesign.language.self.PEParser.*;
 import org.apidesign.language.self.SelfLexer.BasicNode;
-import static org.apidesign.language.self.SelfLexer.concat;
+import org.apidesign.language.self.SelfLexer.ListItem;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
@@ -40,8 +39,8 @@ final class SelfParser {
         Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
         Rule<Object> expression = PARSER.rule("expression");
 
-        program.define(seq(statement, rep(statement),
-                (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
+        program.define(seq(statement, rep(statement, ListItem::<BasicNode>empty, ListItem::new, ListItem::self),
+                (l, r) -> new SelfLexer.BasicNode("program", SelfLexer.concat(l, r))));
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
@@ -50,7 +49,8 @@ final class SelfParser {
                             ref(SelfTokenId.IDENTIFIER), rep(
                                 seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, id) -> {
                                     return key;
-                                })
+                                }),
+                                ListItem::empty, ListItem::new, ListItem::self
                             ), (id, rest) -> {
                             return id;
                         })
@@ -115,7 +115,7 @@ final class SelfParser {
         constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectLiteral));
 
         Element<Object> unaryExprHead = alt(constant, ref(SelfTokenId.IDENTIFIER));
-        Element<LexerList<Token<SelfTokenId>>> unaryExprTail = rep(ref(SelfTokenId.IDENTIFIER));
+        Element<?> unaryExprTail = rep(ref(SelfTokenId.IDENTIFIER), ListItem::empty, ListItem::new, ListItem::self);
         unaryLevel.define(seq(unaryExprHead, unaryExprTail, (t, u) -> {
             return null;
         }));
@@ -133,7 +133,8 @@ final class SelfParser {
         Element<Object> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
             seq(ref(SelfTokenId.KEYWORD), keywordLevel, (arg0, arg1) -> {
                 return null;
-            })
+            }),
+            ListItem::empty, ListItem::new, ListItem::self
         ), (a, b, c) -> {
             return null;
         });
@@ -141,7 +142,7 @@ final class SelfParser {
         expression.define(alt(keywordLevel, binaryLevel));
         exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, (arg0, arg1) -> {
             return null;
-        })), (arg0, arg1) -> {
+        }), ListItem::empty, ListItem::new, ListItem::self), (arg0, arg1) -> {
             return null;
         }));
         PARSER.initialize(program);
@@ -163,11 +164,6 @@ final class SelfParser {
             @Override
             public Token<SelfTokenId> peek(ConditionProfile seenEof) {
                 return seq.token();
-            }
-
-            @Override
-            public void push(Object t) {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
             }
 
             @Override
@@ -200,21 +196,6 @@ final class SelfParser {
             @Override
             public int getStackPointer() {
                 return seq.offset();
-            }
-
-            @Override
-            public LexerList getStackList(int pointer) {
-                return new LexerList() {
-                    @Override
-                    public int size() {
-                        return 0;
-                    }
-
-                    @Override
-                    public SelfLexer.BasicNode get(int i) {
-                        return null;
-                    }
-                };
             }
 
             @Override
@@ -610,12 +591,41 @@ final class SelfLexer implements Lexer<SelfTokenId> {
         return b;
     }
 
-    public static BasicNode[] concat(BasicNode first, LexerList<BasicNode> rest) {
-        BasicNode[] result = new BasicNode[rest.size() + 1];
+    public static BasicNode[] concat(BasicNode first, ListItem<BasicNode> rest) {
+        final int size = ListItem.size(rest);
+        BasicNode[] result = new BasicNode[size + 1];
         result[0] = first;
-        for (int i = 0; i < rest.size(); i++) {
-            result[i + 1] = rest.get(i);
+        for (int i = size; i >= 1; i--) {
+            result[i + 1] = rest.item;
+            rest = rest.prev;
         }
         return result;
+    }
+
+    public static final class ListItem<E> {
+        final ListItem<E> prev;
+        final E item;
+
+        public ListItem(ListItem<E> prev, E item) {
+            this.prev = prev;
+            this.item = item;
+        }
+
+        public static <T> ListItem<T> empty() {
+            return null;
+        }
+
+        public static <T> ListItem<T> self(ListItem<T> self) {
+            return self;
+        }
+
+        public static int size(ListItem<?> item) {
+            int cnt = 0;
+            while (item != null) {
+                cnt++;
+                item = item.prev;
+            }
+            return cnt;
+        }
     }
 }

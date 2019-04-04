@@ -50,8 +50,6 @@ interface PELexer<T> {
 
     public Token<? extends TokenId> peek(ConditionProfile seenEof);
     
-    public void push(T t);
-
     public String position();
 
     public void resetStackPointer(int pointer);
@@ -60,18 +58,9 @@ interface PELexer<T> {
 
     public int getStackPointer();
     
-    public LexerList<T> getStackList(int pointer);
-
     public String tokenNames(TokenId token);
 
     public default String tokenNames(Token<? extends TokenId> token) {
         return tokenNames(token.id());
-    }
-
-    interface LexerList<T> {
-
-        public int size();
-
-        public SelfLexer.BasicNode get(int i);
     }
 }

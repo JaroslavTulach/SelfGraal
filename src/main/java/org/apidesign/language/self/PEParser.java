@@ -60,7 +60,6 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import static org.apidesign.language.self.Alternative.error;
-import org.apidesign.language.self.PELexer.LexerList;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
 
@@ -413,40 +412,6 @@ final class Repetition<T, ListT, R> extends Element<R> {
     }
 }
 
-final class StackRepetition<T> extends Element<LexerList<T>> {
-    @Child private Element<T> element;
-    private final ConditionProfile seenEof = ConditionProfile.createBinaryProfile();
-
-    StackRepetition(Element<T> element) {
-        this.element = element;
-    }
-
-    @Override
-    protected void createFirstSet(Element<?> setHolder, HashSet<Rule<?>> rulesAdded) {
-        throw new IllegalStateException("should not reach here");
-    }
-
-    @Override
-    public void initialize() {
-        element.createFirstSet(element, new HashSet<>());
-        element.initialize();
-    }
-
-    @Override
-    public LexerList<T> consume(PELexer lexer) {
-        int pointer = lexer.getStackPointer();
-        while (true) {
-            Token<? extends TokenId> lookahead = lexer.peek(seenEof);
-            if (!element.canStartWith(lookahead)) {
-                LexerList<T> list = lexer.getStackList(pointer);
-                lexer.resetStackPointer(pointer);
-                return list;
-            }
-            lexer.push(element.consume(lexer));
-        }
-    }
-}
-
 final class OptionalElement<T, R> extends Element<R> {
     @Child Element<T> element;
     private final Function<T, R> hasValueAction;
@@ -558,10 +523,6 @@ public final class PEParser {
 
     public static <A, B, C, D, R> Element<R> seq(Element<A> a, Element<B> b, Element<C> c, Element<D> d, Function4<? super A, ? super B, ? super C, ? super D, R> action) {
         return new Sequence4<>(action, replaceRule(a), replaceRule(b), replaceRule(c), replaceRule(d));
-    }
-
-    public static <T> Element<LexerList<T>> rep(Element<T> element) {
-        return new StackRepetition<>(replaceRule(element));
     }
 
     public static <T, ListT, R> Element<R> rep(Element<T> element, Supplier<ListT> createList, BiFunction<ListT, T, ListT> addToList, Function<ListT, R> createResult) {

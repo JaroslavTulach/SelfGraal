@@ -40,11 +40,17 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.interop.ForeignAccess;
+import com.oracle.truffle.api.interop.MessageResolution;
+import com.oracle.truffle.api.interop.Resolve;
+import com.oracle.truffle.api.interop.TruffleObject;
+import com.oracle.truffle.api.nodes.Node;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-class SelfObject implements Cloneable {
+@MessageResolution(receiverType = SelfObject.class)
+class SelfObject implements Cloneable, TruffleObject {
     private final Map<String, Object> slots;
 
     private SelfObject(Map<String, Object> slots) {
@@ -74,6 +80,22 @@ class SelfObject implements Cloneable {
         return new Builder();
     }
 
+    static boolean isInstance(TruffleObject obj) {
+        return obj instanceof SelfObject;
+    }
+
+    @Override
+    public ForeignAccess getForeignAccess() {
+        return SelfObjectForeign.ACCESS;
+    }
+
+    @Resolve(message = "UNBOX")
+    static abstract class Unbox extends Node {
+        Object access(SelfObject.Wrapper<?> obj) {
+            return obj.value;
+        }
+    }
+
     static final class Builder {
         private Map<String, Object> slots = new HashMap<>();
         private SelfCode code;
@@ -99,7 +121,7 @@ class SelfObject implements Cloneable {
 
     }
 
-    private static final class Wrapper<T> extends SelfObject {
+    static final class Wrapper<T> extends SelfObject {
         private final SelfObject parent;
         private final T value;
 

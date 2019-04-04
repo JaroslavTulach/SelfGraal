@@ -72,7 +72,7 @@ public class SelfParserTest {
 
     @Test
     public void identifiers() {
-        String text = "    i _IntAdd cloud9 resend m a_point \n\t\r NotAnIdent self";
+        String text = "    i _IntAdd cloud9 resend m a_point \n\t\r NotAnIdent true false";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -90,7 +90,9 @@ public class SelfParserTest {
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.ERROR, seq).text("NotAnIdent");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
-        assertNextToken(SelfTokenId.SELF, seq);
+        assertNextToken(SelfTokenId.BOOLEAN, seq).text("true");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.BOOLEAN, seq).text("false");
         assertFalse("At the end of input", seq.moveNext());
     }
 
@@ -255,11 +257,18 @@ public class SelfParserTest {
         }
         Collect c = new Collect();
         SelfParser.parse(s, c);
+        assertProperty(c.obj, "x", "'s'");
+    }
 
-        assertNotNull("Object created", c.obj);
-        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
-        Map<?,?> map = (Map<?,?>) c.obj;
-        assertEquals("Value of x is s", "'s'", map.get("x"));
+    private void assertProperty(Object item, String propertyName, Object exp) {
+        assertNotNull("Object created", item);
+        assertTrue("Instance of right class: " + item, item instanceof SelfObject);
+        SelfObject map = (SelfObject) item;
+        final Object value = map.get(propertyName);
+        assertNotNull("Value of " + propertyName + " is set", value);
+        if (exp != null) {
+            assertEquals("Value of " + propertyName + " is correct", exp, value.toString());
+        }
     }
 
     @Test
@@ -276,10 +285,7 @@ public class SelfParserTest {
         Collect c = new Collect();
         SelfParser.parse(s, c);
 
-        assertNotNull("Object created", c.obj);
-        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
-        Map<?,?> map = (Map<?,?>) c.obj;
-        assertNotNull("Value of id is set", map.get("id:"));
+        assertProperty(c.obj, "id:", null);
     }
 
     @Test
@@ -296,10 +302,7 @@ public class SelfParserTest {
         Collect c = new Collect();
         SelfParser.parse(s, c);
 
-        assertNotNull("Object created", c.obj);
-        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
-        Map<?,?> map = (Map<?,?>) c.obj;
-        assertNotNull("Value of id is set", map.get("plus:"));
+        assertProperty(c.obj, "plus:", null);
     }
 
     @Test
@@ -316,10 +319,7 @@ public class SelfParserTest {
         Collect c = new Collect();
         SelfParser.parse(s, c);
 
-        assertNotNull("Object created", c.obj);
-        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
-        Map<?,?> map = (Map<?,?>) c.obj;
-        assertEquals("Value of id is object", "'e'", map.get("id:"));
+        assertProperty(c.obj, "id:", "'e'");
     }
 
     @Test
@@ -336,11 +336,8 @@ public class SelfParserTest {
         Collect c = new Collect();
         SelfParser.parse(s, c);
 
-        assertNotNull("Object created", c.obj);
-        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
-        Map<?,?> map = (Map<?,?>) c.obj;
-        assertEquals("Value of x is s", "'s'", map.get("x"));
-        assertEquals("Value of y is s", "3", map.get("y"));
+        assertProperty(c.obj, "x", "'s'");
+        assertProperty(c.obj, "y", "3");
     }
 
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {

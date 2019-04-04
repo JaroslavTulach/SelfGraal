@@ -42,9 +42,7 @@ package org.apidesign.language.self;
 
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.source.Source;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -70,8 +68,8 @@ final class SelfParser {
         PARSER = new PEParser();
         // create the rules
         Rule<SelfLexer.BasicNode> program = PARSER.rule("program");
-        Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
-        Rule<SelfLexer.BasicNode> objectLiteral = PARSER.rule("object");
+        Rule<SelfObject> statement = PARSER.rule("statement");
+        Rule<SelfObject> objectLiteral = PARSER.rule("object");
         Rule<Object> exprlist = PARSER.rule("exprlist");
         Rule<Object> constant = PARSER.rule("constant");
         Rule<Object> unaryLevel = PARSER.rule("unaryLevel");
@@ -79,8 +77,13 @@ final class SelfParser {
         Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
         Rule<Object> expression = PARSER.rule("expression");
 
-        program.define(seq(statement, rep(statement, ListItem::<BasicNode>empty, ListItem::new, ListItem::self),
-                (l, r) -> new SelfLexer.BasicNode("program", SelfLexer.concat(l, r))));
+        program.define(seq(
+            statement, rep(statement, ListItem::<SelfObject>empty, ListItem::new, ListItem::self),
+            (l, r) -> {
+                final ListItem<SelfObject> list = new ListItem<>(r, l);
+                return new SelfLexer.BasicNode("program", list);
+            }
+        ));
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
@@ -101,58 +104,72 @@ final class SelfParser {
                 seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> op)
         );
 
-        Element<Slot> slot = alt(
+        Element<SlotInfo> slot = alt(
                 seq(
                     slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, ref(SelfTokenId.IDENTIFIER), statement),
                     (a, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
-                        return new Slot(a.text(), mutable, c);
+                        return new SlotInfo(a.text(), mutable, false, c);
                     }
                 ),
-                ref(SelfTokenId.ARGUMENT, (t) -> Slot.argument(t.text()))
+                ref(SelfTokenId.ARGUMENT, (t) -> SlotInfo.argument(t.text()))
         );
 
-        final Element<Slot> dotAndSlot = seq(ref(SelfTokenId.DOT), slot, (dot, slot1) -> {
-            return slot1;
-        });
-        Element<ArrayList<Slot>> extraSlots = rep(dotAndSlot, () -> new ArrayList<Slot>(), (l, v) -> {
-            l.add(v);
-            return l;
-        }, (t) -> t);
+        final Element<SlotInfo> dotAndSlot = seq(ref(SelfTokenId.DOT), slot, ListItem::second);
+        Element<ListItem<SlotInfo>> extraSlots = rep(dotAndSlot, ListItem::<SlotInfo>empty, ListItem::new, ListItem::self);
 
-        Element<List<Slot>> slots = alt(
-            ref(SelfTokenId.BAR, t -> Collections.emptyList()),
+        Element<ListItem<SlotInfo>> slotsDef = alt(
+            ref(SelfTokenId.BAR, ListItem::<SlotInfo>empty),
             seq(slot, extraSlots, ref(SelfTokenId.BAR), (t, m, u) -> {
-                m.add(0, t);
-                return m;
+                return new ListItem<>(m, t);
             })
         );
 
-        Element<SelfLexer.BasicNode> objectStatement = seq(
+        Element<SelfObject> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), slots, opt(exprlist), (bar, slts, expr) -> {
-                        return slts;
+                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), (bar, slts, expr) -> {
+                        SelfObject.Builder builder = SelfObject.newBuilder();
+                        while (slts != null) {
+                            if (slts.item.argument) {
+                                builder.argument(slts.item.id.toString());
+                            } else {
+                                builder.slot(slts.item.id.toString(), slts.item.value);
+                            }
+                            slts = slts.prev;
+                        }
+                        if (expr.isPresent()) {
+                            builder.code(expr.get());
+                        }
+                        return builder;
                     }),
-                    seq(exprlist, ref(SelfTokenId.RPAREN), (expr, rparen) -> Collections.<Slot>emptyList()),
-                    ref(SelfTokenId.RPAREN, (rparen) -> Collections.<Slot>emptyList())
+                    seq(exprlist, ref(SelfTokenId.RPAREN), (expr, rparen) -> {
+                        return SelfObject.newBuilder().code(expr);
+                    }),
+                    ref(SelfTokenId.RPAREN, (rparen) -> SelfObject.newBuilder())
                 ),
                 (t, u) -> {
-                    return new SelfLexer.BasicNode("()") {
-                        @Override
-                        void print(Consumer<Object> registrar) {
-                            Map<String, Object> obj = new HashMap<>();
-                            for (Slot s : u) {
-                                obj.put(s.id.toString(), s.valueToString());
-                            }
-                            registrar.accept(obj);
-                        }
-                    };
+                    return u.build();
                 }
         );
         objectLiteral.define(objectStatement);
+
+
+
         statement.define(alt(objectLiteral));
 
-        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectLiteral));
+        final Element<SelfObject> constantDef = alt(
+            ref(SelfTokenId.BOOLEAN, (t) -> {
+                return SelfObject.valueOf(Boolean.valueOf(t.text().toString()));
+            }),
+            ref(SelfTokenId.STRING, (t) -> {
+                return SelfObject.valueOf(t.text().toString());
+            }),
+            ref(SelfTokenId.NUMBER, (t) -> {
+                return SelfObject.valueOf(Integer.valueOf(t.text().toString()));
+            }),
+            objectLiteral
+        );
+        constant.define(constantDef);
 
         Element<Object> unaryExprHead = alt(constant, ref(SelfTokenId.IDENTIFIER));
         Element<?> unaryExprTail = rep(ref(SelfTokenId.IDENTIFIER), ListItem::empty, ListItem::new, ListItem::self);
@@ -255,19 +272,20 @@ final class SelfParser {
         return bn;
     }
 
-    private static final class Slot {
-
-        private static Slot argument(CharSequence text) {
-            return new Slot(text, false, null);
+    private static final class SlotInfo {
+        private static SlotInfo argument(CharSequence text) {
+            return new SlotInfo(text, false, true, null);
         }
 
         private final CharSequence id;
         private final boolean mutable;
         private final Object value;
+        private final boolean argument;
 
-        public Slot(CharSequence id, boolean mutable, Object value) {
+        public SlotInfo(CharSequence id, boolean mutable, boolean argument, Object value) {
             this.id = id;
             this.mutable = mutable;
+            this.argument = argument;
             this.value = value;
         }
 
@@ -284,12 +302,12 @@ enum SelfTokenId implements TokenId {
 
     WHITESPACE(null, "whitespace"),
     IDENTIFIER(null, "identifier"),
-    SELF(null, "identifier"),
     RESEND(null, "identifier"),
     KEYWORD_LOWERCASE(null, "identifier"),
     KEYWORD(null, "identifier"),
     ARGUMENT(null, "identifier"),
     OPERATOR(null, null),
+    BOOLEAN(null, "number"),
     NUMBER(null, "number"),
     STRING(null, "string"),
 
@@ -587,7 +605,8 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             } else {
                 input.backup(1); // backup the extra char (or EOF)
                 switch (input.readText().toString()) {
-                    case "self": id = SelfTokenId.SELF; break;
+                    case "true": id = SelfTokenId.BOOLEAN; break;
+                    case "false": id = SelfTokenId.BOOLEAN; break;
                     case "resend": id = SelfTokenId.RESEND; break;
                     default: id = SelfTokenId.IDENTIFIER;
                 }
@@ -599,15 +618,24 @@ final class SelfLexer implements Lexer<SelfTokenId> {
 
         private final String name;
         private final BasicNode[] children;
+        private final ListItem<SelfObject> objects;
 
         BasicNode(String name, BasicNode... children) {
             this.name = name;
             this.children = children;
+            this.objects = null;
         }
 
         BasicNode(String name, List<BasicNode> children) {
             this.name = name;
             this.children = children.toArray(new BasicNode[children.size()]);
+            this.objects = null;
+        }
+
+        BasicNode(String name, ListItem<SelfObject> createdObjects) {
+            this.name = name;
+            this.children = new BasicNode[0];
+            this.objects = createdObjects;
         }
 
         public void print(int level) {
@@ -624,15 +652,12 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             for (BasicNode child : children) {
                 child.print(registrar);
             }
+            ListItem<SelfObject> obj = objects;
+            while (obj != null) {
+                registrar.accept(obj.item);
+                obj = obj.prev;
+            }
         }
-    }
-
-    public static <A, B> A selectFirst(A a, @SuppressWarnings("unused") B b) {
-        return a;
-    }
-
-    public static <A, B> B selectSecond(@SuppressWarnings("unused") A a, B b) {
-        return b;
     }
 
     public static BasicNode[] concat(BasicNode first, ListItem<BasicNode> rest) {
@@ -659,8 +684,20 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             return null;
         }
 
+        public static <T> ListItem<T> empty(Object ignore) {
+            return null;
+        }
+
         public static <T> ListItem<T> self(ListItem<T> self) {
             return self;
+        }
+
+        public static <A, B> A first(A a, B b) {
+            return a;
+        }
+
+        public static <A, B> B second(A a, B b) {
+            return b;
         }
 
         public static int size(ListItem<?> item) {

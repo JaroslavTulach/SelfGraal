@@ -1,6 +1,7 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.source.Source;
+import java.util.Map;
 import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -31,7 +32,7 @@ public class SelfParserTest {
 
     @Test
     public void identifiers() {
-        String text = "    i _IntAdd cloud9 m a_point \n\t\r NotAnIdent";
+        String text = "    i _IntAdd cloud9 resend m a_point \n\t\r NotAnIdent self";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -41,11 +42,15 @@ public class SelfParserTest {
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("cloud9");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.RESEND, seq);
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("m");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.IDENTIFIER, seq).text("a_point");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.ERROR, seq).text("NotAnIdent");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.SELF, seq);
         assertFalse("At the end of input", seq.moveNext());
     }
 
@@ -55,7 +60,7 @@ public class SelfParserTest {
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
-        assertNextToken(SelfTokenId.KEYWORD, seq).text("at:");
+        assertNextToken(SelfTokenId.KEYWORD_LOWERCASE, seq).text("at:");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.ERROR, seq).text("NoKeyword");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -99,11 +104,13 @@ public class SelfParserTest {
 
     @Test
     public void numbers() {
-        String text = "\r123 3.14 1272.34e+15 1e10 1272.34e-15 16r27fe -5";
+        String text = "\r123 . 3.14 1272.34e+15 1e10 1272.34e-15 16r27fe -5";
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.NUMBER, seq).text("123");
+        assertNextToken(SelfTokenId.WHITESPACE, seq);
+        assertNextToken(SelfTokenId.DOT, seq).text(".");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.NUMBER, seq).text("3.14");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
@@ -146,6 +153,22 @@ public class SelfParserTest {
     }
 
     @Test
+    public void parseCodeObject() {
+        Source s = Source.newBuilder("Self", "( 1 + 2 )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+    }
+    @Test
     public void parseEmptyObject() {
         Source s = Source.newBuilder("Self", "()", "empty.sf").build();
         class Collect implements Consumer<Object> {
@@ -160,6 +183,124 @@ public class SelfParserTest {
         SelfParser.parse(s, c);
 
         assertNotNull("Object created", c.obj);
+    }
+
+    @Test
+    public void parseEmptyObjectWithSlots() {
+        Source s = Source.newBuilder("Self", "( | | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+    }
+
+    @Test
+    public void parseEmptyObjectWithOneSlot() {
+        Source s = Source.newBuilder("Self", "( | x = 's' | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of x is s", "'s'", map.get("x"));
+    }
+
+    @Test
+    public void parseIdFn() {
+        Source s = Source.newBuilder("Self", "( | id: n = ( ^n ) | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertNotNull("Value of id is set", map.get("id:"));
+    }
+
+    @Test
+    public void parsePlusFn() {
+        Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | ) plus: 3", "plus.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertNotNull("Value of id is set", map.get("plus:"));
+    }
+
+    @Test
+    public void parseConstantFn() {
+        Source s = Source.newBuilder("Self", "( | id: n = 'e' | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of id is object", "'e'", map.get("id:"));
+    }
+
+    @Test
+    public void parseEmptyObjectWithTwoSlots() {
+        Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertEquals("Value of x is s", "'s'", map.get("x"));
+        assertEquals("Value of y is s", "3", map.get("y"));
     }
 
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {

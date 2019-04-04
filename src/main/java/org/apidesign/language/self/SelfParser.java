@@ -9,7 +9,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Consumer;
 import org.apidesign.language.self.PELexer.LexerList;
 import static org.apidesign.language.self.PEParser.*;
@@ -35,20 +34,12 @@ final class SelfParser {
         Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
         Rule<SelfLexer.BasicNode> objectLiteral = PARSER.rule("object");
         Rule<Object> exprlist = PARSER.rule("exprlist");
-        Rule<SelfLexer.BasicNode[]> varlist = PARSER.rule("varlist");
         Rule<Object> constant = PARSER.rule("constant");
         Rule<Object> unaryLevel = PARSER.rule("unaryLevel");
         Rule<Object> binaryLevel = PARSER.rule("binaryLevel");
         Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
         Rule<Object> expression = PARSER.rule("expression");
-        Rule<SelfLexer.BasicNode> term = PARSER.rule("term");
-        Rule<SelfLexer.BasicNode> factor = PARSER.rule("factor");
-        Rule<SelfLexer.BasicNode> vara = PARSER.rule("vara");
-        Rule<SelfLexer.BasicNode> string = PARSER.rule("string");
-        Rule<SelfLexer.RelOp> relop = PARSER.rule("relop");
 
-        // define the rules
-        // program: line {line}
         program.define(seq(statement, rep(statement),
                 (l, r) -> new SelfLexer.BasicNode("program", concat(l, r))));
 
@@ -129,10 +120,15 @@ final class SelfParser {
             return null;
         }));
 
-        Element<Object> binaryExprHead = alt(ref(SelfTokenId.OPERATOR), unaryLevel);
-        binaryLevel.define(seq(binaryExprHead, unaryLevel, (t, u) -> {
-            return null;
-        }));
+        Element<Object> binaryExpr = alt(
+            seq(ref(SelfTokenId.OPERATOR), unaryLevel, (t, u) -> {
+                return null;
+            }),
+            seq(unaryLevel, ref(SelfTokenId.OPERATOR), unaryLevel, (u1, t, u2) -> {
+                return null;
+            })
+        );
+        binaryLevel.define(binaryExpr);
 
         Element<Object> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
             seq(ref(SelfTokenId.KEYWORD), keywordLevel, (arg0, arg1) -> {
@@ -194,7 +190,8 @@ final class SelfParser {
 
             private void nextTokenMove() {
                 while (seq.moveNext()) {
-                    if (seq.token().id() != SelfTokenId.WHITESPACE) {
+                    final Token<SelfTokenId> lookahead = seq.token();
+                    if (lookahead.id() != SelfTokenId.WHITESPACE) {
                         break;
                     }
                 }
@@ -602,32 +599,6 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             for (BasicNode child : children) {
                 child.print(registrar);
             }
-        }
-    }
-
-    public enum RelOp {
-        LessThan,
-        LessThanEquals,
-        LargerThan,
-        LargerThanEquals,
-        Equals,
-        NotEquals,
-        Plus,
-        Minus;
-
-        static RelOp choose(RelOp a, Optional<RelOp> b) {
-            return b.orElse(a);
-        }
-    }
-
-    static class TermFactor {
-
-        private final String op;
-        private final BasicNode operand;
-
-        TermFactor(String op, BasicNode operand) {
-            this.op = op;
-            this.operand = operand;
         }
     }
 

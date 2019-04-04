@@ -153,6 +153,22 @@ public class SelfParserTest {
     }
 
     @Test
+    public void parseCodeObject() {
+        Source s = Source.newBuilder("Self", "( 1 + 2 )", "empty.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+    }
+    @Test
     public void parseEmptyObject() {
         Source s = Source.newBuilder("Self", "()", "empty.sf").build();
         class Collect implements Consumer<Object> {
@@ -224,6 +240,26 @@ public class SelfParserTest {
         assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
         Map<?,?> map = (Map<?,?>) c.obj;
         assertNotNull("Value of id is set", map.get("id:"));
+    }
+
+    @Test
+    public void parsePlusFn() {
+        Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | ) plus: 3", "plus.sf").build();
+        class Collect implements Consumer<Object> {
+            Object obj;
+            @Override
+            public void accept(Object arg0) {
+                assertNull("No object yet", obj);
+                obj = arg0;
+            }
+        }
+        Collect c = new Collect();
+        SelfParser.parse(s, c);
+
+        assertNotNull("Object created", c.obj);
+        assertTrue("Instance of hash map: " + c.obj, c.obj instanceof Map);
+        Map<?,?> map = (Map<?,?>) c.obj;
+        assertNotNull("Value of id is set", map.get("plus:"));
     }
 
     @Test

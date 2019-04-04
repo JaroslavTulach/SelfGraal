@@ -60,7 +60,7 @@ public class SelfParserTest {
 
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(text, SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         assertNextToken(SelfTokenId.WHITESPACE, seq);
-        assertNextToken(SelfTokenId.KEYWORD, seq).text("at:");
+        assertNextToken(SelfTokenId.KEYWORD_LOWERCASE, seq).text("at:");
         assertNextToken(SelfTokenId.WHITESPACE, seq);
         assertNextToken(SelfTokenId.ERROR, seq).text("NoKeyword");
         assertNextToken(SelfTokenId.WHITESPACE, seq);

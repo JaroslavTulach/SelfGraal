@@ -33,12 +33,13 @@ final class SelfParser {
         // create the rules
         Rule<SelfLexer.BasicNode> program = PARSER.rule("program");
         Rule<SelfLexer.BasicNode> statement = PARSER.rule("statement");
+        Rule<SelfLexer.BasicNode> objectLiteral = PARSER.rule("object");
         Rule<Object> exprlist = PARSER.rule("exprlist");
         Rule<SelfLexer.BasicNode[]> varlist = PARSER.rule("varlist");
         Rule<Object> constant = PARSER.rule("constant");
-        Rule<Object> unaryMessage = PARSER.rule("unaryMessage");
-        Rule<Object> binaryMessage = PARSER.rule("binaryMessage");
-        Rule<Object> keywordMessage = PARSER.rule("keywordMessage");
+        Rule<Object> unaryLevel = PARSER.rule("unaryLevel");
+        Rule<Object> binaryLevel = PARSER.rule("binaryLevel");
+        Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
         Rule<Object> expression = PARSER.rule("expression");
         Rule<SelfLexer.BasicNode> term = PARSER.rule("term");
         Rule<SelfLexer.BasicNode> factor = PARSER.rule("factor");
@@ -53,7 +54,7 @@ final class SelfParser {
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
-                seq(ref(SelfTokenId.KEYWORD), alt(
+                seq(ref(SelfTokenId.KEYWORD_LOWERCASE), alt(
                         seq(
                             ref(SelfTokenId.IDENTIFIER), rep(
                                 seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, id) -> {
@@ -117,25 +118,34 @@ final class SelfParser {
                     };
                 }
         );
-        statement.define(alt(objectStatement));
+        objectLiteral.define(objectStatement);
+        statement.define(alt(objectLiteral));
 
-        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectStatement));
+        constant.define(alt(ref(SelfTokenId.SELF), ref(SelfTokenId.STRING), ref(SelfTokenId.NUMBER), objectLiteral));
 
-        unaryMessage.define(seq(opt(alt(expression, ref(SelfTokenId.RESEND))), ref(SelfTokenId.IDENTIFIER), (t, u) -> {
+        Element<Object> unaryExprHead = alt(constant, ref(SelfTokenId.IDENTIFIER));
+        Element<LexerList<Token<SelfTokenId>>> unaryExprTail = rep(ref(SelfTokenId.IDENTIFIER));
+        unaryLevel.define(seq(unaryExprHead, unaryExprTail, (t, u) -> {
             return null;
         }));
 
-        expression.define(alt(constant, ref(SelfTokenId.IDENTIFIER) /*, unaryMessage , binaryMessage, keywordMessage*/, seq(ref(SelfTokenId.LPAREN), expression, ref(SelfTokenId.RPAREN), (l, e, r) -> {
-            return e;
-        })));
+        Element<Object> binaryExprHead = alt(ref(SelfTokenId.OPERATOR), unaryLevel);
+        binaryLevel.define(seq(binaryExprHead, unaryLevel, (t, u) -> {
+            return null;
+        }));
 
-        exprlist.define(seq(alt(ref(SelfTokenId.OPERATOR), constant, ref(SelfTokenId.IDENTIFIER)), rep(alt(ref(SelfTokenId.OPERATOR), ref(SelfTokenId.IDENTIFIER), constant), () -> {
+        Element<Object> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
+            seq(ref(SelfTokenId.KEYWORD), keywordLevel, (arg0, arg1) -> {
+                return null;
+            })
+        ), (a, b, c) -> {
             return null;
-        }, (l, e) -> {
+        });
+        keywordLevel.define(keywordSeq);
+        expression.define(alt(keywordLevel, binaryLevel));
+        exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, (arg0, arg1) -> {
             return null;
-        }, (r) -> {
-            return null;
-        }), (arg0, arg1) -> {
+        })), (arg0, arg1) -> {
             return null;
         }));
         PARSER.initialize(program);
@@ -255,6 +265,7 @@ enum SelfTokenId implements TokenId {
     IDENTIFIER(null, "identifier"),
     SELF(null, "identifier"),
     RESEND(null, "identifier"),
+    KEYWORD_LOWERCASE(null, "identifier"),
     KEYWORD(null, "identifier"),
     ARGUMENT(null, "identifier"),
     OPERATOR(null, null),
@@ -539,9 +550,9 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             : tokenFactory.createToken(id);
     }
 
-    private Token<SelfTokenId> consumeIdentifier(int ch) {
+    private Token<SelfTokenId> consumeIdentifier(int first) {
         for (;;) {
-            ch = input.read();
+            int ch = input.read();
             if (Character.isLetterOrDigit(ch)) {
                 continue;
             }
@@ -550,7 +561,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             }
             SelfTokenId id;
             if (':' == ch) {
-                id = SelfTokenId.KEYWORD;
+                id = Character.isLowerCase(first) ? SelfTokenId.KEYWORD_LOWERCASE : SelfTokenId.KEYWORD;
             } else {
                 input.backup(1); // backup the extra char (or EOF)
                 switch (input.readText().toString()) {

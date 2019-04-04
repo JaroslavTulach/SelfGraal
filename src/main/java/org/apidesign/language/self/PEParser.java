@@ -168,7 +168,7 @@ final class CallRule<T> extends Element<T> {
 final class Rule<T> extends Element<T> {
 
     private final String name;
-    @Child Element<T> element;
+    @Child Element<? extends T> element;
     CallTarget target;
 
     Rule(String name) {
@@ -182,7 +182,7 @@ final class Rule<T> extends Element<T> {
         return target;
     }
 
-    public void define(Element<T> newElement) {
+    public void define(Element<? extends T> newElement) {
         this.element = newElement;
     }
 
@@ -219,7 +219,7 @@ final class Rule<T> extends Element<T> {
 
     @Override
     public T consume(PELexer lexer) {
-        throw new IllegalStateException();
+        throw new IllegalStateException(getRootNode().getName());
     }
 }
 
@@ -267,7 +267,9 @@ final class Sequence2<T, A, B> extends SequenceBase<T> {
 
     @Override
     public T consume(PELexer lexer) {
-        return action.apply(a.consume(lexer), b.consume(lexer));
+        final A valueA = a.consume(lexer);
+        final B valueB = b.consume(lexer);
+        return action.apply(valueA, valueB);
     }
 }
 
@@ -291,7 +293,10 @@ final class Sequence3<T, A, B, C> extends SequenceBase<T> {
 
     @Override
     public T consume(PELexer lexer) {
-        return action.apply(a.consume(lexer), b.consume(lexer), c.consume(lexer));
+        final A valueA = a.consume(lexer);
+        final B valueB = b.consume(lexer);
+        final C valueC = c.consume(lexer);
+        return action.apply(valueA, valueB, valueC);
     }
 }
 
@@ -317,7 +322,11 @@ final class Sequence4<T, A, B, C, D> extends SequenceBase<T> {
 
     @Override
     public T consume(PELexer lexer) {
-        return action.apply(a.consume(lexer), b.consume(lexer), c.consume(lexer), d.consume(lexer));
+        final A valueA = a.consume(lexer);
+        final B valueB = b.consume(lexer);
+        final C valueC = c.consume(lexer);
+        final D valueD = d.consume(lexer);
+        return action.apply(valueA, valueB, valueC, valueD);
     }
 }
 
@@ -357,7 +366,7 @@ final class Alternative<T> extends Element<T> {
             }
         }
         CompilerDirectives.transferToInterpreter();
-        throw error("no alternative found at " + lexer.position());
+        throw error("no alternative found at " + lexer.position() + " in " + getRootNode().getName());
     }
     
     static RuntimeException error(String message) {

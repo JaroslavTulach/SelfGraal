@@ -25,3 +25,20 @@ without the [Self](http://selflanguage.org) language. Re-implementing the langua
 is a way to pay back to this great pioneer of dynamic compilation.
 
 Join me celebrating [Self](http://selflanguage.org) by forking this repository.
+
+### Parsing Using Partially Evaluated Parser Combinator
+
+The implementation also includes an
+[experimental parser combinator](https://github.com/JaroslavTulach/SelfGraal/commit/3a9f940)
+which is able to speed itself significantly by using Truffle API.
+To see the difference execute:
+```
+SelfGraal$ JAVA_HOME=/jdk1.8.0 mvn install -DSelfGraal.Benchmark=BenchJDK8 2>&1 | grep BenchJDK8
+BenchJDK8 took 306 ms on average
+
+SelfGraal$ JAVA_HOME=/graalvm/ mvn install -DSelfGraal.Benchmark=BenchGraalVM 2>&1 | grep BenchGraalVM
+BenchGraalVM took 127 ms on average
+```
+The parser combinators (`seq`, `alt`, `rep`) compose an *AST* and use Truffle
+constructs (`CallTarget`, `@CompilationFinal`, etc.) to optimize it. The parser
+is a Truffle language on its own!

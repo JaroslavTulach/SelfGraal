@@ -40,8 +40,11 @@
  */
 package org.apidesign.language.self;
 
+import java.io.IOException;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Source;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -56,5 +59,43 @@ public class SelfLanguageTest {
     public void evalTrue() {
         Object yes = Context.create().eval("Self", "( 1 < 3 )").asBoolean();
         Assert.assertEquals(Boolean.TRUE, yes);
+    }
+
+    @Test
+    public void benchmark() throws Exception {
+        String benchmarkName = System.getProperty("SelfGraal.Benchmark");
+        Assume.assumeNotNull("Not running the benchmark without a name", benchmarkName);
+        StringBuilder sb = new StringBuilder();
+        sb.append("( |");
+        for (int i = 0; i < 100000; i++) {
+            sb.append("plus").append(i).append(": n = ( n + 1 ).\n");
+        }
+        sb.append(" x = 1 |)");
+        Context ctx = Context.create();
+
+        System.out.println("Warming up...");
+        benchmarkNTimes("WarmUp", 20, sb, ctx, new long[1]);
+
+        System.out.println("Benchmarking...");
+        long[] sum = { 0 };
+        int count = 10;
+        benchmarkNTimes(benchmarkName, count, sb, ctx, sum);
+        System.out.println(benchmarkName + " took " + (sum[0] / count) + " ms on average");
+    }
+
+    private void benchmarkNTimes(String name, int count, StringBuilder sb, Context ctx, long[] sum) throws IOException {
+        for (int i = 1; i <= count; i++) {
+            System.gc();
+            System.runFinalization();
+            System.gc();
+            Source src = Source.newBuilder("Self", sb.toString(), "large" + i + ".sf").build();
+            long before = System.currentTimeMillis();
+            ctx.eval(src);
+            long after = System.currentTimeMillis();
+            final long took = after - before;
+            System.out.println(name + " #" + i + " took " + took + " ms");
+            sum[0] += took;
+            sb.append("\n");
+        }
     }
 }

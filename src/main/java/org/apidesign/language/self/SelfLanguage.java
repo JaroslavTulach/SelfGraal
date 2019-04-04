@@ -40,27 +40,53 @@
  */
 package org.apidesign.language.self;
 
-import com.oracle.truffle.api.profiles.ConditionProfile;
-import org.netbeans.api.lexer.Token;
-import org.netbeans.api.lexer.TokenId;
+import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.Truffle;
+import com.oracle.truffle.api.TruffleLanguage;
+import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.nodes.RootNode;
 
-interface PELexer<T> {
+@TruffleLanguage.Registration(name = "Self", id = "Self", characterMimeTypes = SelfTokenId.MIMETYPE)
+public class SelfLanguage extends TruffleLanguage<SelfData> {
 
-    public Object[] asArgumentsArray();
+    @Override
+    protected SelfData createContext(Env env) {
+        return new SelfData(env);
+    }
 
-    public Token<? extends TokenId> peek(ConditionProfile seenEof);
-    
-    public String position();
+    @Override
+    protected CallTarget parse(ParsingRequest request) throws Exception {
+        SelfLexer.BasicNode node = SelfParser.parse(request.getSource(), null);
+        SelfSource root = new SelfSource(this, node);
+        return Truffle.getRuntime().createCallTarget(root);
+    }
 
-    public void resetStackPointer(int pointer);
+    @Override
+    protected boolean isObjectOfLanguage(Object object) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+}
 
-    public Token<? extends TokenId> nextToken(ConditionProfile seenEof);
+final class SelfSource extends RootNode {
+    private final SelfLexer.BasicNode node;
 
-    public int getStackPointer();
-    
-    public String tokenNames(TokenId token);
+    SelfSource(TruffleLanguage<?> language, SelfLexer.BasicNode node) {
+        super(language);
+        this.node = node;
+    }
 
-    public default String tokenNames(Token<? extends TokenId> token) {
-        return tokenNames(token.id());
+    @Override
+    public Object execute(VirtualFrame frame) {
+        node.print(33);
+        return true;
+    }
+
+}
+
+final class SelfData {
+    final TruffleLanguage.Env env;
+
+    SelfData(TruffleLanguage.Env env) {
+        this.env = env;
     }
 }

@@ -35,6 +35,12 @@
             <artifactId>truffle-api</artifactId>
             <version>1.0.0-rc12</version>
         </dependency>
+        <dependency>
+            <groupId>org.graalvm.truffle</groupId>
+            <artifactId>truffle-dsl-processor</artifactId>
+            <version>1.0.0-rc12</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
     <name>Self for Graal and Truffle</name>
 </project>

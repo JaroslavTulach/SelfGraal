@@ -67,11 +67,11 @@ final class SelfParser {
     static {
         PARSER = new PEParser();
         // create the rules
-        Rule<SelfLexer.BasicNode> program = PARSER.rule("program");
+        Rule<SelfCode> program = PARSER.rule("program");
         Rule<SelfObject> statement = PARSER.rule("statement");
         Rule<SelfObject> objectLiteral = PARSER.rule("object");
-        Rule<Object> exprlist = PARSER.rule("exprlist");
-        Rule<Object> constant = PARSER.rule("constant");
+        Rule<SelfCode> exprlist = PARSER.rule("exprlist");
+        Rule<SelfObject> constant = PARSER.rule("constant");
         Rule<Object> unaryLevel = PARSER.rule("unaryLevel");
         Rule<Object> binaryLevel = PARSER.rule("binaryLevel");
         Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
@@ -81,7 +81,7 @@ final class SelfParser {
             statement, rep(statement, ListItem::<SelfObject>empty, ListItem::new, ListItem::self),
             (l, r) -> {
                 final ListItem<SelfObject> list = new ListItem<>(r, l);
-                return new SelfLexer.BasicNode("program", list);
+                return SelfCode.constant(l);
             }
         ));
 
@@ -155,7 +155,7 @@ final class SelfParser {
 
 
 
-        statement.define(alt(objectLiteral));
+        statement.define(alt(constant));
 
         final Element<SelfObject> constantDef = alt(
             ref(SelfTokenId.BOOLEAN, (t) -> {
@@ -197,20 +197,20 @@ final class SelfParser {
         });
         keywordLevel.define(keywordSeq);
         expression.define(alt(keywordLevel, binaryLevel));
-        exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, (arg0, arg1) -> {
-            return null;
-        }), ListItem::empty, ListItem::new, ListItem::self), (arg0, arg1) -> {
+        exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, ListItem::second),
+            ListItem::empty, ListItem::new, ListItem::self), (arg0, arg1) -> {
             return null;
         }));
         PARSER.initialize(program);
     }
 
-    public static BasicNode parse(Source s, Consumer<Object> registrar) {
+    public static SelfCode parse(Source s) {
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         class SeqLexer implements PELexer {
             private final Object[] self = new Object[] { this };
+            private boolean eof;
             {
-                nextTokenMove();
+                nextTokenMove(null);
             }
 
             @Override
@@ -220,6 +220,9 @@ final class SelfParser {
 
             @Override
             public Token<SelfTokenId> peek(ConditionProfile seenEof) {
+                if (eof) {
+                    return null;
+                }
                 return seq.token();
             }
 
@@ -237,16 +240,20 @@ final class SelfParser {
             @Override
             public Token<SelfTokenId> nextToken(ConditionProfile seenEof) {
                 Token<SelfTokenId> token = peek(seenEof);
-                nextTokenMove();
+                nextTokenMove(seenEof);
                 return token;
             }
 
-            private void nextTokenMove() {
+            private void nextTokenMove(ConditionProfile seenEof) {
                 while (seq.moveNext()) {
                     final Token<SelfTokenId> lookahead = seq.token();
                     if (lookahead.id() != SelfTokenId.WHITESPACE) {
-                        break;
+                        return;
                     }
+                }
+                eof = true;
+                if (seenEof != null) {
+                    seenEof.profile(true);
                 }
             }
 
@@ -265,11 +272,7 @@ final class SelfParser {
                 return position();
             }
         }
-        BasicNode bn = (BasicNode) PARSER.parse(new SeqLexer());
-        if (registrar != null) {
-            bn.print(registrar);
-        }
-        return bn;
+        return  (SelfCode) PARSER.parse(new SeqLexer());
     }
 
     private static final class SlotInfo {

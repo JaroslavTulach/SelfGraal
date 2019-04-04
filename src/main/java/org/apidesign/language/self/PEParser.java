@@ -76,6 +76,10 @@ abstract class Element<T> extends Node {
     public abstract T consume(PELexer lexer);
 
     public final boolean canStartWith(Token<? extends TokenId> token) {
+        if (token == null) {
+            // eof
+            return false;
+        }
         int id = token.id().ordinal();
         if (singleToken == -1L) {
             CompilerDirectives.transferToInterpreterAndInvalidate();
@@ -245,6 +249,27 @@ abstract class SequenceBase<T> extends Element<T> {
         for (Element<?> element : elements()) {
             element.initialize();
         }
+    }
+}
+
+final class Sequence1<T, A> extends SequenceBase<T> {
+    @Child private Element<A> a;
+    private final Function<? super A, T> action;
+
+    Sequence1(Function<? super A, T> action, Element<A> a) {
+        this.action = action;
+        this.a = a;
+    }
+
+    @Override
+    protected Element<?>[] elements() {
+        return new Element<?>[]{a};
+    }
+
+    @Override
+    public T consume(PELexer lexer) {
+        final A valueA = a.consume(lexer);
+        return action.apply(valueA);
     }
 }
 
@@ -511,6 +536,10 @@ public final class PEParser {
     public static <T> Element<T> alt(Element<? extends T>... options) {
         replaceRules(options);
         return new Alternative<>(options);
+    }
+
+    public static <A, R> Element<R> seq(Element<A> a, Function<? super A, R> action) {
+        return new Sequence1<>(action, replaceRule(a));
     }
 
     public static <A, B, R> Element<R> seq(Element<A> a, Element<B> b, BiFunction<? super A, ? super B, R> action) {

@@ -41,8 +41,6 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.source.Source;
-import java.util.Map;
-import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -197,67 +195,28 @@ public class SelfParserTest {
     @Test
     public void parseCodeObject() {
         Source s = Source.newBuilder("Self", "( 1 + 2 )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertNotNull("Object created", c.obj);
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertNotNull("Object created", obj);
     }
     @Test
     public void parseEmptyObject() {
         Source s = Source.newBuilder("Self", "()", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertNotNull("Object created", c.obj);
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithSlots() {
         Source s = Source.newBuilder("Self", "( | | )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertNotNull("Object created", c.obj);
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithOneSlot() {
         Source s = Source.newBuilder("Self", "( | x = 's' | )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-        assertProperty(c.obj, "x", "'s'");
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertProperty(obj, "x", "'s'");
     }
 
     private void assertProperty(Object item, String propertyName, Object exp) {
@@ -274,70 +233,31 @@ public class SelfParserTest {
     @Test
     public void parseIdFn() {
         Source s = Source.newBuilder("Self", "( | id: n = ( ^n ) | )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertProperty(c.obj, "id:", null);
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertProperty(obj, "id:", null);
     }
 
     @Test
     public void parsePlusFn() {
         Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | ) plus: 3", "plus.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertProperty(c.obj, "plus:", null);
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertProperty(obj, "plus:", null);
     }
 
     @Test
     public void parseConstantFn() {
         Source s = Source.newBuilder("Self", "( | id: n = 'e' | )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertProperty(c.obj, "id:", "'e'");
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        SelfParser.parse(s);
+        assertProperty(obj, "id:", "'e'");
     }
 
     @Test
     public void parseEmptyObjectWithTwoSlots() {
         Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
-        class Collect implements Consumer<Object> {
-            Object obj;
-            @Override
-            public void accept(Object arg0) {
-                assertNull("No object yet", obj);
-                obj = arg0;
-            }
-        }
-        Collect c = new Collect();
-        SelfParser.parse(s, c);
-
-        assertProperty(c.obj, "x", "'s'");
-        assertProperty(c.obj, "y", "3");
+        Object obj = SelfParser.parse(s).sendMessage(null);
+        assertProperty(obj, "x", "'s'");
+        assertProperty(obj, "y", "3");
     }
 
     private TokenHandle assertNextToken(String text, TokenSequence<SelfTokenId> seq) {

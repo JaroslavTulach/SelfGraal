@@ -56,29 +56,30 @@ public class SelfLanguage extends TruffleLanguage<SelfData> {
 
     @Override
     protected CallTarget parse(ParsingRequest request) throws Exception {
-        SelfLexer.BasicNode node = SelfParser.parse(request.getSource(), null);
+        SelfCode node = SelfParser.parse(request.getSource());
         SelfSource root = new SelfSource(this, node);
         return Truffle.getRuntime().createCallTarget(root);
     }
 
     @Override
     protected boolean isObjectOfLanguage(Object object) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return object instanceof SelfObject;
     }
 }
 
 final class SelfSource extends RootNode {
-    private final SelfLexer.BasicNode node;
+    private final SelfCode node;
 
-    SelfSource(TruffleLanguage<?> language, SelfLexer.BasicNode node) {
+    SelfSource(TruffleLanguage<?> language, SelfCode node) {
         super(language);
         this.node = node;
     }
 
     @Override
     public Object execute(VirtualFrame frame) {
-        node.print(33);
-        return true;
+        final Object[] args = frame.getArguments();
+        SelfObject self = (SelfObject) (args.length == 0 ? null : args[0]);
+        return node.sendMessage(self);
     }
 
 }

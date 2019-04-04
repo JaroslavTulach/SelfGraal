@@ -40,78 +40,25 @@
  */
 package org.apidesign.language.self;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import com.oracle.truffle.api.nodes.Node;
 
-class SelfObject implements Cloneable {
-    private final Map<String, Object> slots;
+abstract class SelfCode extends Node {
+    abstract Object sendMessage(SelfObject self);
 
-    private SelfObject(Map<String, Object> slots) {
-        this.slots = slots;
+    static SelfCode constant(SelfObject obj) {
+        return new Constant(obj);
     }
 
-    final Object get(String name) {
-        return slots.get(name);
-    }
+    private static class Constant extends SelfCode {
+        private final SelfObject obj;
 
-    private static final SelfObject BOOLEANS = SelfObject.newBuilder().build();
-    static SelfObject valueOf(boolean value) {
-        return new Wrapper<>(BOOLEANS, value);
-    }
-
-    private static final SelfObject NUMBERS = SelfObject.newBuilder().build();
-    static SelfObject valueOf(int number) {
-        return new Wrapper<>(NUMBERS, number);
-    }
-
-    private static final SelfObject TEXTS = SelfObject.newBuilder().build();
-    static SelfObject valueOf(String text) {
-        return new Wrapper<>(TEXTS, text);
-    }
-
-    static Builder newBuilder() {
-        return new Builder();
-    }
-
-    static final class Builder {
-        private Map<String, Object> slots = new HashMap<>();
-        private SelfCode code;
-
-        Builder code(SelfCode expr) {
-            code = expr;
-            return this;
-        }
-
-        Builder argument(String name) {
-            this.slots.put(name, "");
-            return this;
-        }
-
-        Builder slot(String name, Object value) {
-            this.slots.put(name, value);
-            return this;
-        }
-
-        SelfObject build() {
-            return new SelfObject(slots);
-        }
-
-    }
-
-    private static final class Wrapper<T> extends SelfObject {
-        private final SelfObject parent;
-        private final T value;
-
-        public Wrapper(SelfObject parent, T value) {
-            super(Collections.emptyMap());
-            this.parent = parent;
-            this.value = value;
+        Constant(SelfObject obj) {
+            this.obj = obj;
         }
 
         @Override
-        public String toString() {
-            return value.toString();
+        Object sendMessage(SelfObject self) {
+            return obj;
         }
     }
 }

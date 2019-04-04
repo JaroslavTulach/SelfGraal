@@ -57,8 +57,14 @@ public class SelfLanguageTest {
 
     @Test
     public void evalTrue() {
-        Object yes = Context.create().eval("Self", "( 1 < 3 )").asBoolean();
+        Object yes = Context.create().eval("Self", "true").asBoolean();
         Assert.assertEquals(Boolean.TRUE, yes);
+    }
+
+    @Test
+    public void evalFalse() {
+        Object no = Context.create().eval("Self", "false").asBoolean();
+        Assert.assertEquals(Boolean.FALSE, no);
     }
 
     @Test

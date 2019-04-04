@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import static org.apidesign.language.self.PEParser.*;
 import org.apidesign.language.self.SelfLexer.BasicNode;
 import org.apidesign.language.self.SelfLexer.ListItem;
@@ -67,23 +68,14 @@ final class SelfParser {
     static {
         PARSER = new PEParser();
         // create the rules
-        Rule<SelfCode> program = PARSER.rule("program");
         Rule<SelfObject> statement = PARSER.rule("statement");
         Rule<SelfObject> objectLiteral = PARSER.rule("object");
         Rule<SelfCode> exprlist = PARSER.rule("exprlist");
         Rule<SelfObject> constant = PARSER.rule("constant");
-        Rule<Object> unaryLevel = PARSER.rule("unaryLevel");
-        Rule<Object> binaryLevel = PARSER.rule("binaryLevel");
-        Rule<Object> keywordLevel = PARSER.rule("keywordLevel");
-        Rule<Object> expression = PARSER.rule("expression");
-
-        program.define(seq(
-            statement, rep(statement, ListItem::<SelfObject>empty, ListItem::new, ListItem::self),
-            (l, r) -> {
-                final ListItem<SelfObject> list = new ListItem<>(r, l);
-                return SelfCode.constant(l);
-            }
-        ));
+        Rule<SelfCode> unaryLevel = PARSER.rule("unaryLevel");
+        Rule<SelfCode> binaryLevel = PARSER.rule("binaryLevel");
+        Rule<SelfCode> keywordLevel = PARSER.rule("keywordLevel");
+        Rule<SelfCode> expression = PARSER.rule("expression");
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
@@ -172,22 +164,46 @@ final class SelfParser {
         constant.define(constantDef);
 
         Element<Object> unaryExprHead = alt(constant, ref(SelfTokenId.IDENTIFIER));
-        Element<?> unaryExprTail = rep(ref(SelfTokenId.IDENTIFIER), ListItem::empty, ListItem::new, ListItem::self);
+        Element<ListItem<Token<SelfTokenId>>> unaryExprTail = rep(
+            ref(SelfTokenId.IDENTIFIER),
+            ListItem::<Token<SelfTokenId>>empty, ListItem::new, ListItem::self
+        );
         unaryLevel.define(seq(unaryExprHead, unaryExprTail, (t, u) -> {
-            return null;
+            SelfCode[] receiver = { null };
+            if (t instanceof SelfObject) {
+                // constant
+                receiver[0] = SelfCode.constant((SelfObject) t);
+            } else {
+                // identifier - default receiver is self
+                receiver[0] = SelfCode.self();
+            }
+            ListItem.firstToLast(u, (item) -> {
+                receiver[0] = SelfCode.unaryMessage(receiver[0], u.item.text().toString());
+            });
+            return receiver[0];
         }));
 
-        Element<Object> binaryExpr = alt(
+        Element<SelfCode> binaryExpr = alt(
             seq(ref(SelfTokenId.OPERATOR), unaryLevel, (t, u) -> {
                 return null;
             }),
-            seq(unaryLevel, ref(SelfTokenId.OPERATOR), unaryLevel, (u1, t, u2) -> {
-                return null;
+            seq(unaryLevel, opt(
+                seq(ref(SelfTokenId.OPERATOR), unaryLevel, (operator, argument) -> {
+                    return new Object[] { operator, argument };
+                })
+            ), (unary, operatorAndArgument) -> {
+                if (operatorAndArgument.isEmpty()) {
+                    return unary;
+                } else {
+                    Token<?> token = (Token<?>) operatorAndArgument.get()[0];
+                    SelfCode arg = (SelfCode) operatorAndArgument.get()[1];
+                    return SelfCode.binaryMessage(unary, token.text().toString(), arg);
+                }
             })
         );
         binaryLevel.define(binaryExpr);
 
-        Element<Object> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
+        Element<SelfCode> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
             seq(ref(SelfTokenId.KEYWORD), keywordLevel, (arg0, arg1) -> {
                 return null;
             }),
@@ -198,10 +214,12 @@ final class SelfParser {
         keywordLevel.define(keywordSeq);
         expression.define(alt(keywordLevel, binaryLevel));
         exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, ListItem::second),
-            ListItem::empty, ListItem::new, ListItem::self), (arg0, arg1) -> {
-            return null;
+            ListItem::<SelfCode>empty, ListItem::new, ListItem::self), (head, tail) -> {
+            ListItem<SelfCode> whole = new ListItem<>(tail, head);
+            SelfCode[] arr = ListItem.toArray(whole, SelfCode[]::new);
+            return SelfCode.block(arr);
         }));
-        PARSER.initialize(program);
+        PARSER.initialize(exprlist);
     }
 
     public static SelfCode parse(Source s) {
@@ -710,6 +728,22 @@ final class SelfLexer implements Lexer<SelfTokenId> {
                 item = item.prev;
             }
             return cnt;
+        }
+
+        public static <T> void firstToLast(ListItem<T> last, Consumer<T> call) {
+            if (last != null) {
+                firstToLast(last.prev, call);
+                call.accept(last.item);
+            }
+        }
+
+        public static <T> T[] toArray(ListItem<T> node, Function<Integer, T[]> factory) {
+            T[] arr = factory.apply(size(node));
+            for (int i = arr.length; node != null;) {
+                arr[--i] = node.item;
+                node = node.prev;
+            }
+            return arr;
         }
     }
 }

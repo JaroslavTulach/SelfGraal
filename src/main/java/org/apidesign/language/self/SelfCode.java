@@ -40,13 +40,37 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.interop.UnknownIdentifierException;
+import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
+import java.util.function.Function;
 
 abstract class SelfCode extends Node {
-    abstract Object sendMessage(SelfObject self);
+
+    abstract SelfObject sendMessage(SelfObject self);
 
     static SelfCode constant(SelfObject obj) {
         return new Constant(obj);
+    }
+
+    static SelfCode self() {
+        return new Self();
+    }
+
+    static SelfCode block(SelfCode... children) {
+        return new Block(children);
+    }
+
+    static SelfCode unaryMessage(SelfCode receiver, String message) {
+        return new Message(receiver, message);
+    }
+
+    static SelfCode binaryMessage(SelfCode receiver, String message, SelfCode arg) {
+        return new Message(receiver, message, arg);
+    }
+
+    static SelfCode compute(Function<SelfObject, SelfObject> fn) {
+        return new Compute(fn);
     }
 
     private static class Constant extends SelfCode {
@@ -57,8 +81,76 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        Object sendMessage(SelfObject self) {
-            return obj;
+        SelfObject sendMessage(SelfObject self) {
+            return obj.evalSelf(self);
+        }
+    }
+
+    private static class Self extends SelfCode {
+        @Override
+        SelfObject sendMessage(SelfObject self) {
+            return self;
+        }
+    }
+
+    private static class Message extends SelfCode {
+        @Child
+        private SelfCode receiver;
+        @Children
+        private SelfCode[] args;
+        private final String message;
+
+        Message(SelfCode receiver, String message, SelfCode... args) {
+            this.receiver = receiver;
+            this.message = message;
+            this.args = args;
+        }
+
+        @ExplodeLoop
+        @Override
+        SelfObject sendMessage(SelfObject self) {
+            SelfObject obj = receiver.sendMessage(self);
+            SelfObject[] values = new SelfObject[args.length];
+            for (int i = 0; i < args.length; i++) {
+                values[i] = args[i].sendMessage(self);
+            }
+            final SelfObject msg = (SelfObject) obj.get(message);
+            if (msg == null) {
+                throw UnknownIdentifierException.raise(message);
+            }
+            return msg.evalSelf(self);
+        }
+    }
+
+    private static class Block extends SelfCode {
+        @Children
+        private SelfCode[] children;
+
+        Block(SelfCode[] children) {
+            this.children = children;
+        }
+
+        @ExplodeLoop
+        @Override
+        SelfObject sendMessage(SelfObject self) {
+            SelfObject res = self;
+            for (int i = 0; i < children.length; i++) {
+                res = children[i].sendMessage(self);
+            }
+            return res;
+        }
+    }
+
+    private static class Compute extends SelfCode {
+        private final Function<SelfObject, SelfObject> fn;
+
+        Compute(Function<SelfObject, SelfObject> fn) {
+            this.fn = fn;
+        }
+
+        @Override
+        SelfObject sendMessage(SelfObject self) {
+            return fn.apply(self);
         }
     }
 }

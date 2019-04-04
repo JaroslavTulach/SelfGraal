@@ -500,8 +500,8 @@ final class TokenReference<TID extends TokenId, T> extends Element<T> {
     @Override
     public T consume(PELexer lexer) {
         Token<? extends TokenId> tokenId = lexer.peek(seenEof);
-        Token<? extends TokenId> actualToken;
-        if ((actualToken = lexer.nextToken(seenEof)).id() != token) {
+        Token<? extends TokenId> actualToken = lexer.nextToken(seenEof);
+        if (actualToken == null || actualToken.id() != token) {
             CompilerDirectives.transferToInterpreter();
             error("expecting " + lexer.tokenNames(token) + ", got " + lexer.tokenNames(actualToken) + " at " + lexer.position());
         }
@@ -559,7 +559,7 @@ public final class PEParser {
     }
 
     public static <T> Element<Optional<T>> opt(Element<T> element) {
-        return new OptionalElement<>(replaceRule(element), v -> Optional.of(v), () -> Optional.empty());
+        return new OptionalElement<>(replaceRule(element), v -> Optional.ofNullable(v), () -> Optional.empty());
     }
 
     public static <T extends TokenId> Element<Token<T>> ref(T id) {
@@ -609,7 +609,7 @@ public final class PEParser {
 
     }
 
-    public Object parse(PELexer lexer) {
+    Object parse(PELexer lexer) {
         return root.getCallTarget().call(lexer.asArgumentsArray());
     }
 }

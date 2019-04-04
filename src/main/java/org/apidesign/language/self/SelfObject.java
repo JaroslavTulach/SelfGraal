@@ -45,35 +45,46 @@ import com.oracle.truffle.api.interop.MessageResolution;
 import com.oracle.truffle.api.interop.Resolve;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.nodes.Node;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 @MessageResolution(receiverType = SelfObject.class)
 class SelfObject implements Cloneable, TruffleObject {
     private final Map<String, Object> slots;
+    private final SelfCode code;
 
-    private SelfObject(Map<String, Object> slots) {
+    private SelfObject(Map<String, Object> slots, SelfCode code) {
         this.slots = slots;
+        this.code = code;
     }
 
     final Object get(String name) {
-        return slots.get(name);
+        return slots == null ? null : slots.get(name);
     }
 
-    private static final SelfObject BOOLEANS = SelfObject.newBuilder().build();
+    private static final SelfObject TRUE = SelfObject.newBuilder().
+        wrapper(Boolean.TRUE).
+        slot("not", SelfObject.newBuilder().code((self) -> valueOf(false)).build()).
+        build();
+
+    private static final SelfObject FALSE = SelfObject.newBuilder().
+        wrapper(Boolean.FALSE).
+        slot("not", SelfObject.newBuilder().code((self) -> valueOf(true)).build()).
+        build();
+
     static SelfObject valueOf(boolean value) {
-        return new Wrapper<>(BOOLEANS, value);
+        return value ? TRUE : FALSE;
     }
 
     private static final SelfObject NUMBERS = SelfObject.newBuilder().build();
     static SelfObject valueOf(int number) {
-        return new Wrapper<>(NUMBERS, number);
+        return new Wrapper<>(NUMBERS, null, number);
     }
 
     private static final SelfObject TEXTS = SelfObject.newBuilder().build();
     static SelfObject valueOf(String text) {
-        return new Wrapper<>(TEXTS, text);
+        return new Wrapper<>(TEXTS, null, text);
     }
 
     static Builder newBuilder() {
@@ -89,6 +100,14 @@ class SelfObject implements Cloneable, TruffleObject {
         return SelfObjectForeign.ACCESS;
     }
 
+    SelfObject evalSelf(SelfObject self) {
+        if (code == null) {
+            return this;
+        } else {
+            return code.sendMessage(self);
+        }
+    }
+
     @Resolve(message = "UNBOX")
     static abstract class Unbox extends Node {
         Object access(SelfObject.Wrapper<?> obj) {
@@ -97,36 +116,56 @@ class SelfObject implements Cloneable, TruffleObject {
     }
 
     static final class Builder {
-        private Map<String, Object> slots = new HashMap<>();
+        private Map<String, Object> slots;
         private SelfCode code;
+        private Object wrapper;
 
         Builder code(SelfCode expr) {
             code = expr;
             return this;
         }
 
+        Builder code(Function<SelfObject, SelfObject> fn) {
+            code = SelfCode.compute(fn);
+            return this;
+        }
+
         Builder argument(String name) {
-            this.slots.put(name, "");
+            slots().put(name, "");
             return this;
         }
 
         Builder slot(String name, Object value) {
-            this.slots.put(name, value);
+            slots().put(name, value);
             return this;
         }
 
         SelfObject build() {
-            return new SelfObject(slots);
+            if (wrapper != null) {
+                return new Wrapper(null, slots, wrapper);
+            }
+            return new SelfObject(slots, code);
         }
 
+        private Map<String,Object> slots() {
+            if (slots == null) {
+                slots = new HashMap<>();
+            }
+            return slots;
+        }
+
+        private Builder wrapper(Object obj) {
+            this.wrapper = obj;
+            return this;
+        }
     }
 
     static final class Wrapper<T> extends SelfObject {
         private final SelfObject parent;
         private final T value;
 
-        public Wrapper(SelfObject parent, T value) {
-            super(Collections.emptyMap());
+        public Wrapper(SelfObject parent, Map<String, Object> slots, T value) {
+            super(slots, null);
             this.parent = parent;
             this.value = value;
         }

@@ -68,6 +68,18 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void evalNotTrue() {
+        Object no = Context.create().eval("Self", "true not").asBoolean();
+        Assert.assertEquals(Boolean.FALSE, no);
+    }
+
+    @Test
+    public void evalNotNotTrue() {
+        Object yes = Context.create().eval("Self", "true not not").asBoolean();
+        Assert.assertEquals(Boolean.TRUE, yes);
+    }
+
+    @Test
     public void benchmark() throws Exception {
         String benchmarkName = System.getProperty("SelfGraal.Benchmark");
         Assume.assumeNotNull("Not running the benchmark without a name", benchmarkName);

@@ -40,27 +40,14 @@
  */
 package org.apidesign.language.self;
 
-import com.oracle.truffle.api.profiles.ConditionProfile;
-import org.netbeans.api.lexer.Token;
-import org.netbeans.api.lexer.TokenId;
+import org.graalvm.polyglot.Context;
+import org.junit.Assert;
+import org.junit.Test;
 
-interface PELexer<T> {
-
-    public Object[] asArgumentsArray();
-
-    public Token<? extends TokenId> peek(ConditionProfile seenEof);
-    
-    public String position();
-
-    public void resetStackPointer(int pointer);
-
-    public Token<? extends TokenId> nextToken(ConditionProfile seenEof);
-
-    public int getStackPointer();
-    
-    public String tokenNames(TokenId token);
-
-    public default String tokenNames(Token<? extends TokenId> token) {
-        return tokenNames(token.id());
+public class SelfLanguageTest {
+    @Test
+    public void evalTrue() {
+        Object yes = Context.create().eval("Self", "( 1 < 3 )").asBoolean();
+        Assert.assertEquals(Boolean.TRUE, yes);
     }
 }

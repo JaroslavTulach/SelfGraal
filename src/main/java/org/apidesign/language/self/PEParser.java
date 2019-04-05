@@ -166,6 +166,11 @@ final class CallRule<T> extends Element<T> {
             return (T) call.call(lexer.asArgumentsArray()); // do not create a new array every time
         }
     }
+
+    @Override
+    public String toString() {
+        return "CallRule[" + rule.getName() + "]";
+    }
 }
 
 final class Rule<T> extends Element<T> {

@@ -119,7 +119,7 @@ final class SelfParser {
 
         Element<SelfObject> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), (bar, slts, expr) -> {
+                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RPAREN), (bar, slts, expr, rparen) -> {
                         SelfObject.Builder builder = SelfObject.newBuilder();
                         while (slts != null) {
                             if (slts.item.argument) {
@@ -178,7 +178,8 @@ final class SelfParser {
                 receiver[0] = SelfCode.self();
             }
             ListItem.firstToLast(u, (item) -> {
-                receiver[0] = SelfCode.unaryMessage(receiver[0], u.item.text().toString());
+                final SelfSelector msg = SelfSelector.keyword(u.item.text().toString());
+                receiver[0] = SelfCode.unaryMessage(receiver[0], msg);
             });
             return receiver[0];
         }));
@@ -197,22 +198,33 @@ final class SelfParser {
                 } else {
                     Token<?> token = (Token<?>) operatorAndArgument.get()[0];
                     SelfCode arg = (SelfCode) operatorAndArgument.get()[1];
-                    return SelfCode.binaryMessage(unary, token.text().toString(), arg);
+                    final SelfSelector msg = SelfSelector.keyword(token.text().toString());
+                    return SelfCode.binaryMessage(unary, msg, arg);
                 }
             })
         );
         binaryLevel.define(binaryExpr);
 
-        Element<SelfCode> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
-            seq(ref(SelfTokenId.KEYWORD), keywordLevel, (arg0, arg1) -> {
-                return null;
+        Element<ListItem<SelectorArg>> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
+            seq(ref(SelfTokenId.KEYWORD), keywordLevel, (selectorPart, arg) -> {
+                return new SelectorArg(selectorPart.text().toString(), arg);
             }),
-            ListItem::empty, ListItem::new, ListItem::self
-        ), (a, b, c) -> {
-            return null;
+            ListItem::<SelectorArg>empty, ListItem::new, ListItem::self
+        ), (selectorPart, arg, subsequent) -> {
+            return new ListItem<SelectorArg>(subsequent, new SelectorArg(selectorPart.text().toString(), arg));
         });
-        keywordLevel.define(keywordSeq);
-        expression.define(alt(keywordLevel, binaryLevel));
+        keywordLevel.define(seq(keywordSeq, (selectorAndArgList) -> {
+            return SelectorArg.createKeywordInvocation(selectorAndArgList, SelfCode.self());
+        }));
+        expression.define(alt(keywordLevel, seq(
+            binaryLevel, opt(keywordSeq), (t, u) -> {
+                if (u.isPresent()) {
+                    return SelectorArg.createKeywordInvocation(u.get(), t);
+                } else {
+                    return t;
+                }
+            }
+        )));
         exprlist.define(seq(expression, rep(seq(ref(SelfTokenId.DOT), expression, ListItem::second),
             ListItem::<SelfCode>empty, ListItem::new, ListItem::self), (head, tail) -> {
             ListItem<SelfCode> whole = new ListItem<>(tail, head);
@@ -221,6 +233,30 @@ final class SelfParser {
         }));
         PARSER.initialize(exprlist);
     }
+
+    private static class SelectorArg {
+        final String selector;
+        final SelfCode arg;
+
+        SelectorArg(String selector, SelfCode arg) {
+            this.selector = selector;
+            this.arg = arg;
+        }
+
+        static SelfCode createKeywordInvocation(ListItem<SelectorArg> selectorAndArgList, final SelfCode self) {
+            int size = ListItem.size(selectorAndArgList);
+            String[] selectorParts = new String[size];
+            SelfCode[] args = new SelfCode[size];
+            ListItem<SelectorArg> head = selectorAndArgList;
+            for (int i = size - 1; i >= 0; i--) {
+                selectorParts[i] = head.item.selector;
+                args[i] = head.item.arg;
+            }
+            SelfSelector selector = SelfSelector.keyword(selectorParts);
+            return SelfCode.keywordMessage(self, selector, args);
+        }
+    }
+
 
     public static SelfCode parse(Source s) {
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
@@ -290,7 +326,10 @@ final class SelfParser {
                 return position();
             }
         }
-        return  (SelfCode) PARSER.parse(new SeqLexer());
+        final PELexer lexer = new SeqLexer();
+        SelfCode code = (SelfCode) PARSER.parse(lexer);
+        assert lexer.peek(null) == null : "Fully parsed: " + seq;
+        return code;
     }
 
     private static final class SlotInfo {

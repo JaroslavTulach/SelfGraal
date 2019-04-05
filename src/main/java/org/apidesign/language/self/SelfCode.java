@@ -44,7 +44,6 @@ import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 abstract class SelfCode extends Node {
 
@@ -62,12 +61,16 @@ abstract class SelfCode extends Node {
         return new Block(children);
     }
 
-    static SelfCode unaryMessage(SelfCode receiver, String message) {
+    static SelfCode unaryMessage(SelfCode receiver, SelfSelector message) {
         return new Message(receiver, message);
     }
 
-    static SelfCode binaryMessage(SelfCode receiver, String message, SelfCode arg) {
+    static SelfCode binaryMessage(SelfCode receiver, SelfSelector message, SelfCode arg) {
         return new Message(receiver, message, arg);
+    }
+
+    static SelfCode keywordMessage(SelfCode receiver, SelfSelector selector, SelfCode... args) {
+        return new Message(receiver, selector, args);
     }
 
     static SelfCode compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
@@ -85,6 +88,11 @@ abstract class SelfCode extends Node {
         SelfObject sendMessage(SelfObject self, SelfObject... args) {
             return obj.evalSelf(self, args);
         }
+
+        @Override
+        public String toString() {
+            return "[Constant=" + obj + "]";
+        }
     }
 
     private static class Self extends SelfCode {
@@ -99,9 +107,9 @@ abstract class SelfCode extends Node {
         private SelfCode receiver;
         @Children
         private SelfCode[] args;
-        private final String message;
+        private final SelfSelector message;
 
-        Message(SelfCode receiver, String message, SelfCode... args) {
+        Message(SelfCode receiver, SelfSelector message, SelfCode... args) {
             this.receiver = receiver;
             this.message = message;
             this.args = args;
@@ -115,9 +123,9 @@ abstract class SelfCode extends Node {
             for (int i = 0; i < args.length; i++) {
                 values[i] = args[i].sendMessage(self);
             }
-            final SelfObject msg = (SelfObject) obj.get(message);
+            final SelfObject msg = (SelfObject) obj.get(message.toString());
             if (msg == null) {
-                throw UnknownIdentifierException.raise(message);
+                throw UnknownIdentifierException.raise(message.toString());
             }
             return msg.evalSelf(obj, values);
         }

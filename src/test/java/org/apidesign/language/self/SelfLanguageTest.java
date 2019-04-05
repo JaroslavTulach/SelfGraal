@@ -42,8 +42,12 @@ package org.apidesign.language.self;
 
 import java.io.IOException;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
+import org.graalvm.polyglot.Value;
 import org.junit.Assert;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
@@ -83,6 +87,36 @@ public class SelfLanguageTest {
     public void evalPlus() {
         int three = Context.create().eval("Self", "(1 + 2)").asInt();
         Assert.assertEquals(3, three);
+    }
+
+    @Test
+    public void invokeKeyMessageOnEmptyObject() {
+        final Context ctx = Context.create();
+        try {
+            Value res = ctx.eval("Self", "() plus: 2");
+            fail("Unexpected result: " + res);
+        } catch (PolyglotException ex) {
+            assertNotEquals(ex.getMessage(), -1, ex.getMessage().indexOf("Unknown identifier: plus:"));
+        }
+    }
+
+    @Test
+    public void evalNplusOneDirect() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus: n = ( 1 + n ) | ) plus: 2");
+        Assert.assertNotNull(res.asString());
+        // TBD: Assert.assertEquals(3, res.asInt());
+    }
+
+    @Test
+    public void evalNplusOne() {
+        final Context ctx = Context.create();
+        Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ) | )");
+        /* TBD:
+        Value res = inc.invokeMember("plus:", 2);
+        fail("" + res.toString());
+        Assert.assertEquals(3, res.asInt());
+        */
     }
 
     @Test

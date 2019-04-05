@@ -239,7 +239,7 @@ public class SelfParserTest {
 
     @Test
     public void parsePlusFn() {
-        Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | ) plus: 3", "plus.sf").build();
+        Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | )", "plus.sf").build();
         Object obj = SelfParser.parse(s).sendMessage(null);
         assertProperty(obj, "plus:", null);
     }

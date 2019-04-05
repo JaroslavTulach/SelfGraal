@@ -43,11 +43,12 @@ package org.apidesign.language.self;
 import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 abstract class SelfCode extends Node {
 
-    abstract SelfObject sendMessage(SelfObject self);
+    abstract SelfObject sendMessage(SelfObject self, SelfObject... args);
 
     static SelfCode constant(SelfObject obj) {
         return new Constant(obj);
@@ -69,7 +70,7 @@ abstract class SelfCode extends Node {
         return new Message(receiver, message, arg);
     }
 
-    static SelfCode compute(Function<SelfObject, SelfObject> fn) {
+    static SelfCode compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
         return new Compute(fn);
     }
 
@@ -81,14 +82,14 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self) {
-            return obj.evalSelf(self);
+        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+            return obj.evalSelf(self, args);
         }
     }
 
     private static class Self extends SelfCode {
         @Override
-        SelfObject sendMessage(SelfObject self) {
+        SelfObject sendMessage(SelfObject self, SelfObject... args) {
             return self;
         }
     }
@@ -108,7 +109,7 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self) {
+        SelfObject sendMessage(SelfObject self, SelfObject... myArgs) {
             SelfObject obj = receiver.sendMessage(self);
             SelfObject[] values = new SelfObject[args.length];
             for (int i = 0; i < args.length; i++) {
@@ -118,7 +119,7 @@ abstract class SelfCode extends Node {
             if (msg == null) {
                 throw UnknownIdentifierException.raise(message);
             }
-            return msg.evalSelf(self);
+            return msg.evalSelf(obj, values);
         }
     }
 
@@ -132,7 +133,7 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self) {
+        SelfObject sendMessage(SelfObject self, SelfObject... args) {
             SelfObject res = self;
             for (int i = 0; i < children.length; i++) {
                 res = children[i].sendMessage(self);
@@ -142,15 +143,15 @@ abstract class SelfCode extends Node {
     }
 
     private static class Compute extends SelfCode {
-        private final Function<SelfObject, SelfObject> fn;
+        private final BiFunction<SelfObject, SelfObject[], SelfObject> fn;
 
-        Compute(Function<SelfObject, SelfObject> fn) {
+        Compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
             this.fn = fn;
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self) {
-            return fn.apply(self);
+        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+            return fn.apply(self, args);
         }
     }
 }

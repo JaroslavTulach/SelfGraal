@@ -80,6 +80,12 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void evalPlus() {
+        int three = Context.create().eval("Self", "(1 + 2)").asInt();
+        Assert.assertEquals(3, three);
+    }
+
+    @Test
     public void benchmark() throws Exception {
         String benchmarkName = System.getProperty("SelfGraal.Benchmark");
         Assume.assumeNotNull("Not running the benchmark without a name", benchmarkName);

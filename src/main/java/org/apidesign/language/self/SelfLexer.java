@@ -40,6 +40,7 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CompilerDirectives;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -459,6 +460,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             return cnt;
         }
 
+        @CompilerDirectives.TruffleBoundary
         public static <T> void firstToLast(ListItem<T> last, Consumer<T> call) {
             if (last != null) {
                 firstToLast(last.prev, call);

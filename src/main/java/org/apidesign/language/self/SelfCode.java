@@ -40,6 +40,7 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
@@ -49,30 +50,37 @@ abstract class SelfCode extends Node {
 
     abstract SelfObject sendMessage(SelfObject self, SelfObject... args);
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode constant(SelfObject obj) {
         return new Constant(obj);
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode self() {
         return new Self();
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode block(SelfCode... children) {
         return new Block(children);
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode unaryMessage(SelfCode receiver, SelfSelector message) {
         return new Message(receiver, message);
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode binaryMessage(SelfCode receiver, SelfSelector message, SelfCode arg) {
         return new Message(receiver, message, arg);
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode keywordMessage(SelfCode receiver, SelfSelector selector, SelfCode... args) {
         return new Message(receiver, selector, args);
     }
 
+    @CompilerDirectives.TruffleBoundary
     static SelfCode compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
         return new Compute(fn);
     }

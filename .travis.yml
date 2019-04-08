@@ -17,8 +17,9 @@ script:
   - JH=`ls -d graalvm*`$D
   - ls -l $JH
   - JAVA_HOME=$JH mvn clean install
-  - mvn test -DSelfGraal.Benchmark=BenchmarkJDK11 2>&1 | grep BenchmarkJDK11
-  - JAVA_HOME=$JH mvn test -DSelfGraal.Benchmark=BenchmarkGraalVM 2>&1 | grep BenchmarkGraalVM
+  - mvn test -DSelfGraal.Benchmark=BenchJDK11 2>&1 | grep BenchJDK11
+  - JAVA_HOME=$JH mvn test -DSelfGraal.Benchmark=BenchGraalVM 2>&1 | tee BenchGraalVM.log | grep BenchGraalVM
+  - if grep Exception BenchGraalVM.log; then cat BenchGraalVM.log; exit 1; fi
 
 matrix:
     include:

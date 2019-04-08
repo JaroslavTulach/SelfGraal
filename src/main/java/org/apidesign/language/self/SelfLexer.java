@@ -460,11 +460,15 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             return cnt;
         }
 
-        @CompilerDirectives.TruffleBoundary
         public static <T> void firstToLast(ListItem<T> last, Consumer<T> call) {
-            if (last != null) {
-                firstToLast(last.prev, call);
-                call.accept(last.item);
+            int len = size(last);
+            Object[] arr = new Object[len];
+            for (int i = len; i > 0;) {
+                arr[--i] = last.item;
+                last = last.prev;
+            }
+            for (int i = 0; i < len; i++) {
+                call.accept((T) arr[i]);
             }
         }
 

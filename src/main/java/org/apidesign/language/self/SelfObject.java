@@ -45,23 +45,31 @@ import com.oracle.truffle.api.interop.MessageResolution;
 import com.oracle.truffle.api.interop.Resolve;
 import com.oracle.truffle.api.interop.TruffleObject;
 import com.oracle.truffle.api.nodes.Node;
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 @MessageResolution(receiverType = SelfObject.class)
 class SelfObject implements Cloneable, TruffleObject {
     private final Map<String, Object> slots;
     private final SelfCode code;
+    private final SelfObject parent;
 
-    private SelfObject(Map<String, Object> slots, SelfCode code) {
+    private SelfObject(Map<String, Object> slots, SelfCode code, SelfObject parent) {
         this.slots = slots;
         this.code = code;
+        this.parent = parent;
     }
 
     Object get(String name) {
-        return slots == null ? null : slots.get(name);
+        Object v = slots == null ? null : slots.get(name);
+        if (v == null && parent != null) {
+            v = parent.get(name);
+        }
+        return v;
     }
 
     private static final SelfObject TRUE = SelfObject.newBuilder().
@@ -80,13 +88,15 @@ class SelfObject implements Cloneable, TruffleObject {
 
     private static final SelfObject NUMBERS = SelfObject.newBuilder().
         slot("+", SelfObject.newBuilder().code((self, arg) -> {
-            if (arg[0] instanceof Wrapper) {
-                Object n1 = ((Wrapper) arg[0]).value;
-                if (n1 instanceof Number) {
-                    return SelfObject.valueOf(((Number)((Wrapper)self).value).intValue() + ((Number) n1).intValue());
+            Optional<Object> valueArg = findWrappedValue(arg[0]);
+            Optional<Object> valueNum = findWrappedValue(self);
+            if (valueArg.isPresent() && valueNum.isPresent()) {
+                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
+                    int res = ((Number)valueNum.get()).intValue() + ((Number)valueArg.get()).intValue();
+                    return SelfObject.valueOf(res);
                 }
             }
-            return SelfObject.valueOf(self.toString() + arg[0].toString());
+            return SelfObject.valueOf(self.toString() + Objects.toString(arg[0]));
         }).build()).
         build();
     static SelfObject valueOf(int number) {
@@ -115,14 +125,35 @@ class SelfObject implements Cloneable, TruffleObject {
         if (code == null) {
             return this;
         } else {
-            return code.sendMessage(self, values);
+            SelfObject methodActivation = cloneWithArgs(self, values);
+            return code.sendMessage(methodActivation, values);
         }
+    }
+
+    private SelfObject cloneWithArgs(SelfObject parent, SelfObject[] args) {
+        assert code != null;
+        Map<String, Object> slotsClone;
+        if (slots == null) {
+            slotsClone = null;
+        } else {
+            slotsClone = new LinkedHashMap<>();
+            int index = 0;
+            for (Map.Entry<String, Object> e : slots.entrySet()) {
+                if (e.getKey().startsWith(":")) {
+                    slotsClone.put(e.getKey().substring(1), args[index++]);
+                } else {
+                    slotsClone.put(e.getKey(), e.getValue());
+                }
+            }
+            assert index == args.length : "Slots " + slotsClone + " args: " + Arrays.toString(args);
+        }
+        return new SelfObject(slotsClone, code, parent);
     }
 
     @Resolve(message = "UNBOX")
     static abstract class Unbox extends Node {
-        Object access(SelfObject.Wrapper<?> obj) {
-            return obj.value;
+        Object access(SelfObject obj) {
+            return findWrappedValue(obj).get();
         }
     }
 
@@ -155,12 +186,12 @@ class SelfObject implements Cloneable, TruffleObject {
             if (wrapper != null) {
                 return new Wrapper(null, slots, wrapper);
             }
-            return new SelfObject(slots, code);
+            return new SelfObject(slots, code, null);
         }
 
         private Map<String,Object> slots() {
             if (slots == null) {
-                slots = new HashMap<>();
+                slots = new LinkedHashMap<>();
             }
             return slots;
         }
@@ -171,28 +202,27 @@ class SelfObject implements Cloneable, TruffleObject {
         }
     }
 
-    static final class Wrapper<T> extends SelfObject {
-        private final SelfObject parent;
+    private static final class Wrapper<T> extends SelfObject {
         private final T value;
 
-        public Wrapper(SelfObject parent, Map<String, Object> slots, T value) {
-            super(slots, null);
-            this.parent = parent;
+        Wrapper(SelfObject parent, Map<String, Object> slots, T value) {
+            super(slots, null, parent);
             this.value = value;
-        }
-
-        @Override
-        Object get(String name) {
-            Object v = super.get(name);
-            if (v == null && parent != null) {
-                v = parent.get(name);
-            }
-            return v;
         }
 
         @Override
         public String toString() {
             return value.toString();
         }
+    }
+
+    private static Optional<Object> findWrappedValue(SelfObject obj) {
+        while (obj != null) {
+            if (obj instanceof Wrapper) {
+                return Optional.of(((Wrapper) obj).value);
+            }
+            obj = obj.parent;
+        }
+        return null;
     }
 }

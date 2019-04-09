@@ -101,11 +101,10 @@ public class SelfLanguageTest {
     }
 
     @Test
-    public void evalNplusOneDirect() {
+    public void evalNplusOneArgument() {
         final Context ctx = Context.create();
-        Value res = ctx.eval("Self", "( | plus: n = ( 1 + n ) | ) plus: 2");
-        Assert.assertNotNull(res.asString());
-        // TBD: Assert.assertEquals(3, res.asInt());
+        Value res = ctx.eval("Self", "( | plus: = ( | :n | 1 + n ) | ) plus: 2");
+        Assert.assertEquals(3, res.asInt());
     }
 
     @Test

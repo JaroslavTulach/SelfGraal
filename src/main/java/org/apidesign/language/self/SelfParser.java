@@ -65,7 +65,7 @@ final class SelfParser {
 
         Element<Token<SelfTokenId>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER),
-                seq(ref(SelfTokenId.KEYWORD_LOWERCASE), alt(
+                seq(ref(SelfTokenId.KEYWORD_LOWERCASE), opt(alt(
                         seq(
                             ref(SelfTokenId.IDENTIFIER), rep(
                                 seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, id) -> {
@@ -76,7 +76,7 @@ final class SelfParser {
                             return id;
                         })
 //                        rep(ref(SelfTokenId.KEYWORD))
-                ), (key, alt) -> {
+                )), (key, alt) -> {
                     return key;
                 }),
                 seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> op)
@@ -160,8 +160,9 @@ final class SelfParser {
                 // constant
                 receiver[0] = SelfCode.constant((SelfObject) t);
             } else {
+                final SelfSelector selector = SelfSelector.keyword(((Token<?>)t).text().toString());
                 // identifier - default receiver is self
-                receiver[0] = SelfCode.self();
+                receiver[0] = SelfCode.unaryMessage(SelfCode.self(), selector);
             }
             ListItem.firstToLast(u, (item) -> {
                 final SelfSelector msg = SelfSelector.keyword(u.item.text().toString());

@@ -63,39 +63,50 @@ final class SelfParser {
         Rule<SelfCode> keywordLevel = PARSER.rule("keywordLevel");
         Rule<SelfCode> expression = PARSER.rule("expression");
 
-        Element<IdArg> slotId = alt(
+        Element<ListItem<IdArg>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER, (t) -> {
-                    return new IdArg(t, null, null);
+                    return new ListItem<>(null, new IdArg(t, null));
                 }),
                 seq(ref(SelfTokenId.KEYWORD_LOWERCASE), opt(alt(
                         seq(
                             ref(SelfTokenId.IDENTIFIER), rep(
-                                seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, id) -> {
-                                    return key;
+                                seq(ref(SelfTokenId.KEYWORD), ref(SelfTokenId.IDENTIFIER), (key, arg) -> {
+                                    return new IdArg(key, arg);
                                 }),
-                                ListItem::empty, ListItem::new, ListItem::self
+                                ListItem::<IdArg>empty, ListItem::new, ListItem::self
                             ), (id, rest) -> {
-                            return id;
+                            return new ListItem(rest, new IdArg(null, id));
                         })
 //                        rep(ref(SelfTokenId.KEYWORD))
                 )), (key, alt) -> {
-                    return new IdArg(key, alt.isPresent() ? alt.get() : null, null);
+                    if (alt.isPresent()) {
+                        ListItem<IdArg> rest = alt.get();
+                        return new ListItem<>(rest.prev, new IdArg(key, rest.item.arg));
+                    } else {
+                        return new ListItem<>(null, new IdArg(key, null));
+                    }
                 }),
                 seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> {
-                    return new IdArg(op, null, null);
+                    return new ListItem<>(null, new IdArg(op, null));
                 })
         );
 
         Element<SlotInfo> slot = alt(
                 seq(
                     slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, ref(SelfTokenId.IDENTIFIER), statement),
-                    (a, b, c) -> {
+                    (idsAndArgs, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
+                        SelfSelector messageSelector = IdArg.toSelector(idsAndArgs);
+                        IdArg a = idsAndArgs.item;
                         if (a.arg != null && c instanceof SelfObject) {
-                            final String argName = ":" + a.arg.text();
-                            c = SelfObject.newBuilder((SelfObject) c).argument(argName).build();
+                            ListItem<IdArg> at = idsAndArgs;
+                            while (at != null) {
+                                final String argName = ":" + at.item.arg.text();
+                                c = SelfObject.newBuilder((SelfObject) c).argument(argName).build();
+                                at = at.prev;
+                            }
                         }
-                        return new SlotInfo(a.id.text(), mutable, false, c);
+                        return new SlotInfo(messageSelector.toString(), mutable, false, c);
                     }
                 ),
                 ref(SelfTokenId.ARGUMENT, (t) -> SlotInfo.argument(t.text()))
@@ -200,8 +211,8 @@ final class SelfParser {
         );
         binaryLevel.define(binaryExpr);
 
-        Element<ListItem<SelectorArg>> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), binaryLevel, rep(
-            seq(ref(SelfTokenId.KEYWORD), keywordLevel, (selectorPart, arg) -> {
+        Element<ListItem<SelectorArg>> keywordSeq = seq(ref(SelfTokenId.KEYWORD_LOWERCASE), expression, rep(
+            seq(ref(SelfTokenId.KEYWORD), expression, (selectorPart, arg) -> {
                 return new SelectorArg(selectorPart.text().toString(), arg);
             }),
             ListItem::<SelectorArg>empty, ListItem::new, ListItem::self
@@ -232,12 +243,20 @@ final class SelfParser {
     private static class IdArg {
         final Token<SelfTokenId> id;
         final Token<SelfTokenId> arg;
-        final IdArg prev;
 
-        IdArg(Token<SelfTokenId> id, Token<SelfTokenId> arg, IdArg prev) {
+        IdArg(Token<SelfTokenId> id, Token<SelfTokenId> arg) {
             this.id = id;
             this.arg = arg;
-            this.prev = prev;
+        }
+
+        static SelfSelector toSelector(ListItem<IdArg> args) {
+            int size = ListItem.size(args);
+            String[] keywords = new String[size];
+            for (int i = 0; i < size; i++) {
+                keywords[i] = args.item.id.text().toString();
+                args = args.prev;
+            }
+            return SelfSelector.keyword(keywords);
         }
     }
 
@@ -255,9 +274,10 @@ final class SelfParser {
             String[] selectorParts = new String[size];
             SelfCode[] args = new SelfCode[size];
             ListItem<SelectorArg> head = selectorAndArgList;
-            for (int i = size - 1; i >= 0; i--) {
+            for (int i = 0; i < args.length; i++) {
                 selectorParts[i] = head.item.selector;
                 args[i] = head.item.arg;
+                head = head.prev;
             }
             SelfSelector selector = SelfSelector.keyword(selectorParts);
             return SelfCode.keywordMessage(self, selector, args);

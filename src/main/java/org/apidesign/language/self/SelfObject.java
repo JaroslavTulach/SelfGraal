@@ -40,6 +40,7 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.interop.ForeignAccess;
 import com.oracle.truffle.api.interop.MessageResolution;
 import com.oracle.truffle.api.interop.Resolve;
@@ -112,6 +113,7 @@ class SelfObject implements Cloneable, TruffleObject {
         return new Builder();
     }
 
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static Builder newBuilder(SelfObject toCopy) {
         Builder b = new Builder();
         b.code(toCopy.code);

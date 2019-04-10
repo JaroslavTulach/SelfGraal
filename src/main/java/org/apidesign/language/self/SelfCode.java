@@ -50,37 +50,37 @@ abstract class SelfCode extends Node {
 
     abstract SelfObject sendMessage(SelfObject self, SelfObject... args);
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode constant(SelfObject obj) {
         return new Constant(obj);
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode self() {
         return new Self();
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode block(SelfCode... children) {
         return new Block(children);
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode unaryMessage(SelfCode receiver, SelfSelector message) {
         return new Message(receiver, message);
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode binaryMessage(SelfCode receiver, SelfSelector message, SelfCode arg) {
         return new Message(receiver, message, arg);
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode keywordMessage(SelfCode receiver, SelfSelector selector, SelfCode... args) {
         return new Message(receiver, selector, args);
     }
 
-    @CompilerDirectives.TruffleBoundary
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
         return new Compute(fn);
     }

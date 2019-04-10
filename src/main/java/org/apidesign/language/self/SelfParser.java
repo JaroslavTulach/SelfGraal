@@ -207,18 +207,22 @@ final class SelfParser {
             seq(ref(SelfTokenId.OPERATOR), unaryLevel, (t, u) -> {
                 return null;
             }),
-            seq(unaryLevel, opt(
+            seq(unaryLevel, rep(
                 seq(ref(SelfTokenId.OPERATOR), unaryLevel, (operator, argument) -> {
                     return new Object[] { operator, argument };
-                })
+                }), ListItem::<Object[]>empty, ListItem::new, ListItem::self
             ), (unary, operatorAndArgument) -> {
-                if (!operatorAndArgument.isPresent()) {
+                if (operatorAndArgument == null) {
                     return unary;
                 } else {
-                    Token<?> token = (Token<?>) operatorAndArgument.get()[0];
-                    SelfCode arg = (SelfCode) operatorAndArgument.get()[1];
-                    final SelfSelector msg = SelfSelector.keyword(token.text().toString());
-                    return SelfCode.binaryMessage(unary, msg, arg);
+                    SelfCode[] tree = { unary };
+                    ListItem.firstToLast(operatorAndArgument, (opArg) -> {
+                        Token<?> token = (Token<?>) opArg[0];
+                        SelfCode arg = (SelfCode) opArg[1];
+                        final SelfSelector msg = SelfSelector.keyword(token.text().toString());
+                        tree[0] = SelfCode.binaryMessage(tree[0], msg, arg);
+                    });
+                    return tree[0];
                 }
             })
         );

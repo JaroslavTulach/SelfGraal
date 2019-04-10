@@ -145,7 +145,7 @@ public class SelfLanguageTest {
     @Test
     public void evalMultiKeywordMessage4() {
         final Context ctx = Context.create();
-        Value res = ctx.eval("Self", "( | plus: n And: m By: o Yet: p = ( (m + n) + (o + p) ) | ) plus: 1 And: 2 By: 1 Yet: 1");
+        Value res = ctx.eval("Self", "( | plus: n And: m By: o Yet: p = ( m + n + o + p ) | ) plus: 1 And: 2 By: 1 Yet: 1");
         Assert.assertEquals(5, res.asInt());
     }
 

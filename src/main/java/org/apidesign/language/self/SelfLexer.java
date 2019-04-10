@@ -472,7 +472,17 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             }
         }
 
-        public static <T> T[] toArray(ListItem<T> node, Function<Integer, T[]> factory) {
+
+        @CompilerDirectives.TruffleBoundary
+        public static <T> ListItem<T> firstAndNewer(T item, ListItem<T> list) {
+            if (list == null) {
+                return new ListItem<>(null, item);
+            } else {
+                return new ListItem<>(firstAndNewer(item, list.prev), list.item);
+            }
+        }
+
+        public static <T> T[] toArray(ListItem<? extends T> node, Function<Integer, T[]> factory) {
             T[] arr = factory.apply(size(node));
             for (int i = arr.length; node != null;) {
                 arr[--i] = node.item;

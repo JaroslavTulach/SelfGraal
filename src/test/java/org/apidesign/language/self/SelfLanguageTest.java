@@ -129,6 +129,34 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void evalMultiKeywordMessage3() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus: n And: m By: o = ( (m + n) + o ) | ) plus: 2 And: 2 By: 1");
+        Assert.assertEquals(5, res.asInt());
+    }
+
+    @Test
+    public void evalMultiKeywordMessageWithInObjectArgs3() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus:And:By: = ( | :n. :m. :o | (m + n) + o ) | ) plus: 2 And: 1 By: 2");
+        Assert.assertEquals(5, res.asInt());
+    }
+
+    @Test
+    public void evalMultiKeywordMessage4() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus: n And: m By: o Yet: p = ( (m + n) + (o + p) ) | ) plus: 1 And: 2 By: 1 Yet: 1");
+        Assert.assertEquals(5, res.asInt());
+    }
+
+    @Test
+    public void evalMultiKeywordMessageWithInObjectArgs4() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus:And:By:Yet: = ( | :n. :m. :o. :p | (m + n) + (o + p) ) | ) plus: 2 And: 1 By: 1 Yet: 1");
+        Assert.assertEquals(5, res.asInt());
+    }
+
+    @Test
     public void evalNplusOne() {
         final Context ctx = Context.create();
         Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ) | )");

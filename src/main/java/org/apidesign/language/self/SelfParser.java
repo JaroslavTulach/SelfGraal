@@ -84,16 +84,16 @@ final class SelfParser {
                                 }),
                                 ListItem::<IdArg>empty, ListItem::new, ListItem::self
                             ), (secondKeyword, moreKeywords) -> {
-                                return new ListItem<>(moreKeywords, new IdArg(secondKeyword, null));
+                                return ListItem.firstAndNewer(new IdArg(secondKeyword, null), moreKeywords);
                             }
                         )
                 )), (key, alt) -> {
                     if (alt.isPresent()) {
                         ListItem<IdArg> rest = alt.get();
                         if (rest.item.id == null) {
-                            return new ListItem<>(rest.prev, new IdArg(key, rest.item.arg));
+                            return ListItem.firstAndNewer(new IdArg(key, rest.item.arg), rest.prev);
                         } else {
-                            return new ListItem<>(rest, new IdArg(key, null));
+                            return ListItem.firstAndNewer(new IdArg(key, null), rest);
                         }
                     } else {
                         return new ListItem<>(null, new IdArg(key, null));
@@ -230,7 +230,7 @@ final class SelfParser {
             }),
             ListItem::<SelectorArg>empty, ListItem::new, ListItem::self
         ), (selectorPart, arg, subsequent) -> {
-            return new ListItem<SelectorArg>(subsequent, new SelectorArg(selectorPart.text().toString(), arg));
+            return ListItem.firstAndNewer(new SelectorArg(selectorPart.text().toString(), arg), subsequent);
         });
         keywordLevel.define(seq(keywordSeq, (selectorAndArgList) -> {
             return SelectorArg.createKeywordInvocation(selectorAndArgList, SelfCode.self());
@@ -265,8 +265,8 @@ final class SelfParser {
         static SelfSelector toSelector(ListItem<IdArg> args) {
             int size = ListItem.size(args);
             String[] keywords = new String[size];
-            for (int i = 0; i < size; i++) {
-                keywords[i] = args.item.id.text().toString();
+            for (int i = size; i > 0;) {
+                keywords[--i] = args.item.id.text().toString();
                 args = args.prev;
             }
             return SelfSelector.keyword(keywords);
@@ -287,7 +287,8 @@ final class SelfParser {
             String[] selectorParts = new String[size];
             SelfCode[] args = new SelfCode[size];
             ListItem<SelectorArg> head = selectorAndArgList;
-            for (int i = 0; i < args.length; i++) {
+            for (int i = size; i > 0;) {
+                --i;
                 selectorParts[i] = head.item.selector;
                 args[i] = head.item.arg;
                 head = head.prev;

@@ -149,6 +149,13 @@ public class SelfLanguageTest {
         Assert.assertEquals(5, res.asInt());
     }
 
+    @Test(expected = PolyglotException.class)
+    public void rowOfHeterogenousOperandsIsntAllowed() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus: n And: m By: o = ( m + n * o) | )");
+        fail("Parse shouldn't succeed: " + res);
+    }
+
     @Test
     public void evalMultiKeywordMessageWithInObjectArgs4() {
         final Context ctx = Context.create();

@@ -216,10 +216,15 @@ final class SelfParser {
                     return unary;
                 } else {
                     SelfCode[] tree = { unary };
+                    String[] previousText = { null };
                     ListItem.firstToLast(operatorAndArgument, (opArg) -> {
-                        Token<?> token = (Token<?>) opArg[0];
+                        String operator = ((Token<?>) opArg[0]).text().toString();
+                        if (previousText[0] != null && !previousText[0].equals(operator)) {
+                            throw new IllegalStateException("no precedence for binary operator - please use parentheses for " + previousText[0] + " and " + operator);
+                        }
+                        previousText[0] = operator;
                         SelfCode arg = (SelfCode) opArg[1];
-                        final SelfSelector msg = SelfSelector.keyword(token.text().toString());
+                        final SelfSelector msg = SelfSelector.keyword(operator);
                         tree[0] = SelfCode.binaryMessage(tree[0], msg, arg);
                     });
                     return tree[0];

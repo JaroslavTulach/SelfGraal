@@ -75,13 +75,26 @@ final class SelfParser {
                                 }),
                                 ListItem::<IdArg>empty, ListItem::new, ListItem::self
                             ), (id, rest) -> {
-                            return new ListItem(rest, new IdArg(null, id));
-                        })
-//                        rep(ref(SelfTokenId.KEYWORD))
+                            return new ListItem<>(rest, new IdArg(null, id));
+                        }),
+                        seq(
+                            ref(SelfTokenId.KEYWORD),rep(
+                                ref(SelfTokenId.KEYWORD, (key) -> {
+                                    return new IdArg(key, null);
+                                }),
+                                ListItem::<IdArg>empty, ListItem::new, ListItem::self
+                            ), (secondKeyword, moreKeywords) -> {
+                                return new ListItem<>(moreKeywords, new IdArg(secondKeyword, null));
+                            }
+                        )
                 )), (key, alt) -> {
                     if (alt.isPresent()) {
                         ListItem<IdArg> rest = alt.get();
-                        return new ListItem<>(rest.prev, new IdArg(key, rest.item.arg));
+                        if (rest.item.id == null) {
+                            return new ListItem<>(rest.prev, new IdArg(key, rest.item.arg));
+                        } else {
+                            return new ListItem<>(rest, new IdArg(key, null));
+                        }
                     } else {
                         return new ListItem<>(null, new IdArg(key, null));
                     }

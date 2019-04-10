@@ -122,6 +122,13 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void evalMultiKeywordMessageWithInObjectArgs() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus:And:= ( | :n. :m | m + n ) | ) plus: 2 And: 3");
+        Assert.assertEquals(5, res.asInt());
+    }
+
+    @Test
     public void evalNplusOne() {
         final Context ctx = Context.create();
         Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ) | )");

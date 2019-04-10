@@ -63,8 +63,10 @@ final class SelfParser {
         Rule<SelfCode> keywordLevel = PARSER.rule("keywordLevel");
         Rule<SelfCode> expression = PARSER.rule("expression");
 
-        Element<Token<SelfTokenId>> slotId = alt(
-                ref(SelfTokenId.IDENTIFIER),
+        Element<IdArg> slotId = alt(
+                ref(SelfTokenId.IDENTIFIER, (t) -> {
+                    return new IdArg(t, null, null);
+                }),
                 seq(ref(SelfTokenId.KEYWORD_LOWERCASE), opt(alt(
                         seq(
                             ref(SelfTokenId.IDENTIFIER), rep(
@@ -77,9 +79,11 @@ final class SelfParser {
                         })
 //                        rep(ref(SelfTokenId.KEYWORD))
                 )), (key, alt) -> {
-                    return key;
+                    return new IdArg(key, alt.isPresent() ? alt.get() : null, null);
                 }),
-                seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> op)
+                seq(ref(SelfTokenId.OPERATOR), opt(ref(SelfTokenId.IDENTIFIER)), (op, id) -> {
+                    return new IdArg(op, null, null);
+                })
         );
 
         Element<SlotInfo> slot = alt(
@@ -87,7 +91,11 @@ final class SelfParser {
                     slotId, alt(ref(SelfTokenId.EQUAL), ref(SelfTokenId.ARROW)), alt(constant, ref(SelfTokenId.IDENTIFIER), statement),
                     (a, b, c) -> {
                         boolean mutable = b.id() != SelfTokenId.EQUAL;
-                        return new SlotInfo(a.text(), mutable, false, c);
+                        if (a.arg != null && c instanceof SelfObject) {
+                            final String argName = ":" + a.arg.text();
+                            c = SelfObject.newBuilder((SelfObject) c).argument(argName).build();
+                        }
+                        return new SlotInfo(a.id.text(), mutable, false, c);
                     }
                 ),
                 ref(SelfTokenId.ARGUMENT, (t) -> SlotInfo.argument(t.text()))
@@ -219,6 +227,18 @@ final class SelfParser {
             return SelfCode.block(arr);
         }));
         PARSER.initialize(exprlist);
+    }
+
+    private static class IdArg {
+        final Token<SelfTokenId> id;
+        final Token<SelfTokenId> arg;
+        final IdArg prev;
+
+        IdArg(Token<SelfTokenId> id, Token<SelfTokenId> arg, IdArg prev) {
+            this.id = id;
+            this.arg = arg;
+            this.prev = prev;
+        }
     }
 
     private static class SelectorArg {

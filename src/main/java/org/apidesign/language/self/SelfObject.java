@@ -112,6 +112,18 @@ class SelfObject implements Cloneable, TruffleObject {
         return new Builder();
     }
 
+    static Builder newBuilder(SelfObject toCopy) {
+        Builder b = new Builder();
+        b.code(toCopy.code);
+        if (toCopy.slots != null) {
+            b.slots = new LinkedHashMap<>(toCopy.slots);
+        }
+        if (toCopy instanceof Wrapper) {
+            b.wrapper(((Wrapper) toCopy).value);
+        }
+        return b;
+    }
+
     static boolean isInstance(TruffleObject obj) {
         return obj instanceof SelfObject;
     }

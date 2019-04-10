@@ -108,6 +108,13 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void evalNplusOneDirect() {
+        final Context ctx = Context.create();
+        Value res = ctx.eval("Self", "( | plus: n = ( 1 + n ) | ) plus: 2");
+        Assert.assertEquals(3, res.asInt());
+    }
+
+    @Test
     public void evalNplusOne() {
         final Context ctx = Context.create();
         Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ) | )");

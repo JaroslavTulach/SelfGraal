@@ -70,9 +70,13 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             switch (ch) {
                 case '(':
                     return token(SelfTokenId.LPAREN);
-
                 case ')':
                     return token(SelfTokenId.RPAREN);
+
+                case '[':
+                    return token(SelfTokenId.LBRACKET);
+                case ']':
+                    return token(SelfTokenId.RBRACKET);
 
                 case '.':
                     return token(SelfTokenId.DOT);

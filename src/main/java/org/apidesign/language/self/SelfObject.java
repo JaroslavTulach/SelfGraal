@@ -55,14 +55,16 @@ import java.util.function.BiFunction;
 
 @MessageResolution(receiverType = SelfObject.class)
 class SelfObject implements Cloneable, TruffleObject {
+    private final boolean block;
     private final Map<String, Object> slots;
     private final SelfCode code;
     private final SelfObject parent;
 
-    private SelfObject(Map<String, Object> slots, SelfCode code, SelfObject parent) {
+    private SelfObject(Map<String, Object> slots, SelfCode code, SelfObject parent, boolean block) {
         this.slots = slots;
         this.code = code;
         this.parent = parent;
+        this.block = block;
     }
 
     Object get(String name) {
@@ -77,7 +79,7 @@ class SelfObject implements Cloneable, TruffleObject {
         wrapper(Boolean.TRUE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(false)).build()).
         slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return args[0];
+            return evalBlock(self, args[0]);
         }).build()).
         build();
 
@@ -85,12 +87,22 @@ class SelfObject implements Cloneable, TruffleObject {
         wrapper(Boolean.FALSE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(true)).build()).
         slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return args[1];
+            return evalBlock(self, args[1]);
         }).build()).
         build();
 
     static SelfObject valueOf(boolean value) {
         return value ? TRUE : FALSE;
+    }
+
+    private static SelfObject evalBlock(SelfObject self, SelfObject block, SelfObject... args) {
+        SelfObject res;
+        if (block.block && block.code != null) {
+            res = block.code.sendMessage(block, args);
+        } else {
+            res = block;
+        }
+        return res;
     }
 
     private static final SelfObject NUMBERS = SelfObject.newBuilder().
@@ -168,6 +180,9 @@ class SelfObject implements Cloneable, TruffleObject {
             return this;
         } else {
             SelfObject methodActivation = cloneWithArgs(self, values);
+            if (methodActivation.block) {
+                return methodActivation;
+            }
             return code.sendMessage(methodActivation, values);
         }
     }
@@ -189,7 +204,7 @@ class SelfObject implements Cloneable, TruffleObject {
             }
             assert index == args.length : "Slots " + slotsClone + " args: " + Arrays.toString(args);
         }
-        return new SelfObject(slotsClone, code, parent);
+        return new SelfObject(slotsClone, code, parent, block);
     }
 
     @Resolve(message = "UNBOX")
@@ -202,6 +217,7 @@ class SelfObject implements Cloneable, TruffleObject {
     static final class Builder {
         private Map<String, Object> slots;
         private SelfCode code;
+        private boolean block;
         private Object wrapper;
 
         Builder code(SelfCode expr) {
@@ -228,7 +244,7 @@ class SelfObject implements Cloneable, TruffleObject {
             if (wrapper != null) {
                 return new Wrapper(null, slots, wrapper);
             }
-            return new SelfObject(slots, code, null);
+            return new SelfObject(slots, code, null, block);
         }
 
         private Map<String,Object> slots() {
@@ -242,13 +258,18 @@ class SelfObject implements Cloneable, TruffleObject {
             this.wrapper = obj;
             return this;
         }
+
+        Builder block(boolean b) {
+            this.block = b;
+            return this;
+        }
     }
 
     private static final class Wrapper<T> extends SelfObject {
         private final T value;
 
         Wrapper(SelfObject parent, Map<String, Object> slots, T value) {
-            super(slots, null, parent);
+            super(slots, null, parent, false);
             this.value = value;
         }
 
@@ -265,6 +286,6 @@ class SelfObject implements Cloneable, TruffleObject {
             }
             obj = obj.parent;
         }
-        return null;
+        return Optional.empty();
     }
 }

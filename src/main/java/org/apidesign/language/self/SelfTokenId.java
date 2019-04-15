@@ -66,6 +66,8 @@ enum SelfTokenId implements TokenId {
     COMMENT(null, "comment"),
     LPAREN("(", "separator"),
     RPAREN(")", "separator"),
+    LBRACKET("[", "separator"),
+    RBRACKET("]", "separator"),
     BAR("|", "separator"),
     DOT(".", "separator"),
     EQUAL("=", "separator"),

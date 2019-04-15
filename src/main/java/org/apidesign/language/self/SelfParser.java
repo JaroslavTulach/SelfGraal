@@ -161,8 +161,34 @@ final class SelfParser {
                     return u.build();
                 }
         );
-        objectLiteral.define(objectStatement);
 
+        Element<SelfObject> blockStatement = seq(
+                ref(SelfTokenId.LBRACKET), alt(
+                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RBRACKET), (bar, slts, expr, rparen) -> {
+                        SelfObject.Builder builder = SelfObject.newBuilder();
+                        while (slts != null) {
+                            if (slts.item.argument) {
+                                builder.argument(slts.item.id.toString());
+                            } else {
+                                builder.slot(slts.item.id.toString(), slts.item.value);
+                            }
+                            slts = slts.prev;
+                        }
+                        if (expr.isPresent()) {
+                            builder.code(expr.get());
+                        }
+                        return builder;
+                    }),
+                    seq(exprlist, ref(SelfTokenId.RBRACKET), (expr, rparen) -> {
+                        return SelfObject.newBuilder().code(expr);
+                    }),
+                    ref(SelfTokenId.RBRACKET, (rparen) -> SelfObject.newBuilder())
+                ),
+                (t, u) -> {
+                    return u.block(true).build();
+                }
+        );
+        objectLiteral.define(alt(objectStatement, blockStatement));
 
 
         statement.define(alt(constant));

@@ -183,6 +183,13 @@ public class SelfLanguageTest {
     }
 
     @Test
+    public void fibonacci() {
+        final Context ctx = Context.create();
+        Value fibonacci = ctx.eval("Self", "( | fib: n = ( n < 3 ifTrue: 1 False: [ (fib: (n - 1)) + (fib: (n - 2)) ] ) | ) fib: 20");
+        assertEquals(6765, fibonacci.asInt());
+    }
+
+    @Test
     public void benchmark() throws Exception {
         String benchmarkName = System.getProperty("SelfGraal.Benchmark");
         Assume.assumeNotNull("Not running the benchmark without a name", benchmarkName);

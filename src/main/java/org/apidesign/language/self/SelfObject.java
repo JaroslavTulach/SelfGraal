@@ -76,11 +76,17 @@ class SelfObject implements Cloneable, TruffleObject {
     private static final SelfObject TRUE = SelfObject.newBuilder().
         wrapper(Boolean.TRUE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(false)).build()).
+        slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
+            return args[0];
+        }).build()).
         build();
 
     private static final SelfObject FALSE = SelfObject.newBuilder().
         wrapper(Boolean.FALSE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(true)).build()).
+        slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
+            return args[1];
+        }).build()).
         build();
 
     static SelfObject valueOf(boolean value) {
@@ -98,6 +104,28 @@ class SelfObject implements Cloneable, TruffleObject {
                 }
             }
             return SelfObject.valueOf(self.toString() + Objects.toString(arg[0]));
+        }).build()).
+        slot("-", SelfObject.newBuilder().code((self, arg) -> {
+            Optional<Object> valueArg = findWrappedValue(arg[0]);
+            Optional<Object> valueNum = findWrappedValue(self);
+            if (valueArg.isPresent() && valueNum.isPresent()) {
+                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
+                    int res = ((Number)valueNum.get()).intValue() - ((Number)valueArg.get()).intValue();
+                    return SelfObject.valueOf(res);
+                }
+            }
+            throw new IllegalStateException(valueArg + " " + valueNum);
+        }).build()).
+        slot("<", SelfObject.newBuilder().code((self, arg) -> {
+            Optional<Object> valueArg = findWrappedValue(arg[0]);
+            Optional<Object> valueNum = findWrappedValue(self);
+            if (valueArg.isPresent() && valueNum.isPresent()) {
+                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
+                    boolean res = ((Number)valueNum.get()).intValue() < ((Number)valueArg.get()).intValue();
+                    return SelfObject.valueOf(res);
+                }
+            }
+            return SelfObject.valueOf(false);
         }).build()).
         build();
     static SelfObject valueOf(int number) {

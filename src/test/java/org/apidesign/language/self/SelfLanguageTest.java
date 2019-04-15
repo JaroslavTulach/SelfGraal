@@ -46,6 +46,7 @@ import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
 import org.junit.Assert;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.fail;
 import org.junit.Assume;
@@ -172,6 +173,13 @@ public class SelfLanguageTest {
         fail("" + res.toString());
         Assert.assertEquals(3, res.asInt());
         */
+    }
+
+    @Test
+    public void abs() {
+        final Context ctx = Context.create();
+        Value five = ctx.eval("Self", "( | abs: n = ( n < 0 ifTrue: 0 - n False: n ) | ) abs: -5");
+        assertEquals(5, five.asInt());
     }
 
     @Test

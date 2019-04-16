@@ -41,12 +41,8 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.CompilerDirectives;
-import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.interop.ForeignAccess;
-import com.oracle.truffle.api.interop.MessageResolution;
-import com.oracle.truffle.api.interop.Resolve;
 import com.oracle.truffle.api.interop.TruffleObject;
-import com.oracle.truffle.api.nodes.Node;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,7 +50,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 
-@MessageResolution(receiverType = SelfObject.class)
 class SelfObject implements Cloneable, TruffleObject {
     private final boolean block;
     private final Map<String, Object> slots;
@@ -173,7 +168,7 @@ class SelfObject implements Cloneable, TruffleObject {
 
     @Override
     public ForeignAccess getForeignAccess() {
-        return SelfObjectForeign.ACCESS;
+        return SelfInteropForeign.ACCESS;
     }
 
     SelfObject evalSelf(SelfObject self, Object[] values) {
@@ -206,33 +201,6 @@ class SelfObject implements Cloneable, TruffleObject {
             assert index == args.length : "Slots " + slotsClone + " args: " + Arrays.toString(args);
         }
         return new SelfObject(slotsClone, code, parent, block);
-    }
-
-    @Resolve(message = "UNBOX")
-    static abstract class Unbox extends Node {
-        Object access(SelfObject obj) {
-            return findWrappedValue(obj).get();
-        }
-    }
-
-    @Resolve(message = "INVOKE")
-    static abstract class Invoke extends Node {
-        SelfCode message;
-
-        Object access(VirtualFrame frame, SelfObject obj, String member, Object... args) {
-            if (message == null) {
-                CompilerDirectives.transferToInterpreterAndInvalidate();
-                SelfSelector selector = SelfSelector.keyword(member);
-                SelfCode receiver = SelfCode.constant(obj);
-                SelfCode[] values = new SelfCode[args.length];
-                for (int i = 0; i < args.length; i++) {
-                    values[i] = SelfCode.convertArgument(i);
-                }
-                final SelfCode msg = SelfCode.keywordMessage(receiver, selector, values);
-                message = insert(msg);
-            }
-            return message.sendMessage(obj, args);
-        }
     }
 
     static final class Builder {
@@ -300,7 +268,7 @@ class SelfObject implements Cloneable, TruffleObject {
         }
     }
 
-    private static Optional<Object> findWrappedValue(Object obj) {
+    static Optional<Object> findWrappedValue(Object obj) {
         while (obj instanceof SelfObject) {
             if (obj instanceof Wrapper) {
                 return Optional.of(((Wrapper) obj).value);

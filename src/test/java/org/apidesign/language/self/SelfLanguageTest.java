@@ -168,11 +168,10 @@ public class SelfLanguageTest {
     public void evalNplusOne() {
         final Context ctx = Context.create();
         Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ) | )");
-        /* TBD:
-        Value res = inc.invokeMember("plus:", 2);
-        fail("" + res.toString());
-        Assert.assertEquals(3, res.asInt());
-        */
+        Value three = inc.invokeMember("plus:", 2);
+        Assert.assertEquals(3, three.asInt());
+        Value five = inc.invokeMember("plus:", 4);
+        Assert.assertEquals(5, five.asInt());
     }
 
     @Test

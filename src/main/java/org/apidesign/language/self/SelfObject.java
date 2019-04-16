@@ -41,6 +41,7 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.interop.ForeignAccess;
 import com.oracle.truffle.api.interop.MessageResolution;
 import com.oracle.truffle.api.interop.Resolve;
@@ -79,7 +80,7 @@ class SelfObject implements Cloneable, TruffleObject {
         wrapper(Boolean.TRUE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(false)).build()).
         slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return evalBlock(self, args[0]);
+            return evalBlock(self, (SelfObject) args[0]);
         }).build()).
         build();
 
@@ -87,7 +88,7 @@ class SelfObject implements Cloneable, TruffleObject {
         wrapper(Boolean.FALSE).
         slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(true)).build()).
         slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return evalBlock(self, args[1]);
+            return evalBlock(self, (SelfObject) args[1]);
         }).build()).
         build();
 
@@ -95,7 +96,7 @@ class SelfObject implements Cloneable, TruffleObject {
         return value ? TRUE : FALSE;
     }
 
-    private static SelfObject evalBlock(SelfObject self, SelfObject block, SelfObject... args) {
+    private static SelfObject evalBlock(SelfObject self, SelfObject block, Object... args) {
         SelfObject res;
         if (block.block && block.code != null) {
             res = block.code.sendMessage(block, args);
@@ -175,7 +176,7 @@ class SelfObject implements Cloneable, TruffleObject {
         return SelfObjectForeign.ACCESS;
     }
 
-    SelfObject evalSelf(SelfObject self, SelfObject[] values) {
+    SelfObject evalSelf(SelfObject self, Object[] values) {
         if (code == null) {
             return this;
         } else {
@@ -187,7 +188,7 @@ class SelfObject implements Cloneable, TruffleObject {
         }
     }
 
-    private SelfObject cloneWithArgs(SelfObject parent, SelfObject[] args) {
+    private SelfObject cloneWithArgs(SelfObject parent, Object[] args) {
         assert code != null;
         Map<String, Object> slotsClone;
         if (slots == null) {
@@ -214,6 +215,26 @@ class SelfObject implements Cloneable, TruffleObject {
         }
     }
 
+    @Resolve(message = "INVOKE")
+    static abstract class Invoke extends Node {
+        SelfCode message;
+
+        Object access(VirtualFrame frame, SelfObject obj, String member, Object... args) {
+            if (message == null) {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                SelfSelector selector = SelfSelector.keyword(member);
+                SelfCode receiver = SelfCode.constant(obj);
+                SelfCode[] values = new SelfCode[args.length];
+                for (int i = 0; i < args.length; i++) {
+                    values[i] = SelfCode.convertArgument(i);
+                }
+                final SelfCode msg = SelfCode.keywordMessage(receiver, selector, values);
+                message = insert(msg);
+            }
+            return message.sendMessage(obj, args);
+        }
+    }
+
     static final class Builder {
         private Map<String, Object> slots;
         private SelfCode code;
@@ -225,7 +246,7 @@ class SelfObject implements Cloneable, TruffleObject {
             return this;
         }
 
-        Builder code(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
+        Builder code(BiFunction<SelfObject, Object[], SelfObject> fn) {
             code = SelfCode.compute(fn);
             return this;
         }
@@ -279,12 +300,12 @@ class SelfObject implements Cloneable, TruffleObject {
         }
     }
 
-    private static Optional<Object> findWrappedValue(SelfObject obj) {
-        while (obj != null) {
+    private static Optional<Object> findWrappedValue(Object obj) {
+        while (obj instanceof SelfObject) {
             if (obj instanceof Wrapper) {
                 return Optional.of(((Wrapper) obj).value);
             }
-            obj = obj.parent;
+            obj = ((SelfObject) obj).parent;
         }
         return Optional.empty();
     }

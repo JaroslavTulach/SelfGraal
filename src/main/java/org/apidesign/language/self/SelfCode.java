@@ -48,11 +48,16 @@ import java.util.function.BiFunction;
 
 abstract class SelfCode extends Node {
 
-    abstract SelfObject sendMessage(SelfObject self, SelfObject... args);
+    abstract SelfObject sendMessage(SelfObject self, Object... args);
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode constant(SelfObject obj) {
         return new Constant(obj);
+    }
+
+    @CompilerDirectives.TruffleBoundary(allowInlining = true)
+    static SelfCode convertArgument(int arg) {
+        return new Convert(arg);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -81,7 +86,7 @@ abstract class SelfCode extends Node {
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
+    static SelfCode compute(BiFunction<SelfObject, Object[], SelfObject> fn) {
         return new Compute(fn);
     }
 
@@ -93,7 +98,7 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+        SelfObject sendMessage(SelfObject self, Object... args) {
             return obj.evalSelf(self, args);
         }
 
@@ -105,7 +110,7 @@ abstract class SelfCode extends Node {
 
     private static class Self extends SelfCode {
         @Override
-        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+        SelfObject sendMessage(SelfObject self, Object... args) {
             return self;
         }
     }
@@ -125,11 +130,11 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, SelfObject... myArgs) {
+        SelfObject sendMessage(SelfObject self, Object... myArgs) {
             SelfObject obj = receiver.sendMessage(self);
             SelfObject[] values = new SelfObject[args.length];
             for (int i = 0; i < args.length; i++) {
-                values[i] = args[i].sendMessage(self);
+                values[i] = args[i].sendMessage(self, myArgs);
             }
             final SelfObject msg = (SelfObject) obj.get(message.toString());
             if (msg == null) {
@@ -149,7 +154,7 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+        SelfObject sendMessage(SelfObject self, Object... args) {
             SelfObject res = self;
             for (int i = 0; i < children.length; i++) {
                 res = children[i].sendMessage(self);
@@ -159,15 +164,36 @@ abstract class SelfCode extends Node {
     }
 
     private static class Compute extends SelfCode {
-        private final BiFunction<SelfObject, SelfObject[], SelfObject> fn;
+        private final BiFunction<SelfObject, Object[], SelfObject> fn;
 
-        Compute(BiFunction<SelfObject, SelfObject[], SelfObject> fn) {
+        Compute(BiFunction<SelfObject, Object[], SelfObject> fn) {
             this.fn = fn;
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, SelfObject... args) {
+        SelfObject sendMessage(SelfObject self, Object... args) {
             return fn.apply(self, args);
+        }
+    }
+
+    private static class Convert extends SelfCode {
+        private final int index;
+
+        public Convert(int index) {
+            this.index = index;
+        }
+
+        @Override
+        SelfObject sendMessage(SelfObject self, Object... args) {
+            Object value = args[index];
+            if (value instanceof Number) {
+                return SelfObject.valueOf(((Number) value).intValue());
+            } else if (value instanceof Boolean) {
+                return SelfObject.valueOf((Boolean) value);
+            } else if (value instanceof String) {
+                return SelfObject.valueOf((String) value);
+            }
+            return (SelfObject) value;
         }
     }
 }

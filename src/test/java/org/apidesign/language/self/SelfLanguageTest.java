@@ -167,13 +167,28 @@ public class SelfLanguageTest {
     @Test
     public void evalNplusOne() {
         final Context ctx = Context.create();
-        Value inc = ctx.eval("Self", "( | plus: n = ( n + 1 ). minus: n = (n - 1) | )");
-        Value three = inc.invokeMember("plus:", 2);
+        Value arith = ctx.eval("Self", "(| \n"
+                + " plus: n = ( n + one).\n"
+                + " minus: n = (n - one).\n"
+                + " zero = (0).\n"
+                + " one = (1).\n"
+                + " + = ( | :x. :y | x + zero + y ).\n"
+                + " x:Y:Z: = ( | :x. :y. :z | x + y + z )\n"
+                + "|)\n");
+        Value zero = arith.invokeMember("zero");
+        Assert.assertEquals(0, zero.asInt());
+        Value one = arith.invokeMember("one");
+        Assert.assertEquals(1, one.asInt());
+        Value three = arith.invokeMember("plus:", 2);
         Assert.assertEquals(3, three.asInt());
-        Value five = inc.invokeMember("plus:", 4);
+        Value five = arith.invokeMember("plus:", 4);
         Assert.assertEquals(5, five.asInt());
-        Value four = inc.invokeMember("minus:", 5);
+        Value four = arith.invokeMember("minus:", 5);
         Assert.assertEquals(4, four.asInt());
+        Value thirteen = arith.invokeMember("+", 6, 7);
+        Assert.assertEquals(13, thirteen.asInt());
+        Value all = arith.invokeMember("x:Y:Z:", 6, 7, 7);
+        Assert.assertEquals(20, all.asInt());
     }
 
     @Test

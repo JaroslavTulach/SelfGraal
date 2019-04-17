@@ -41,7 +41,8 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.CompilerAsserts;
-import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.dsl.Cached;
+import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.interop.MessageResolution;
 import com.oracle.truffle.api.interop.Resolve;
@@ -58,35 +59,25 @@ final class SelfInterop {
         }
     }
 
-    @Resolve(message = "INVOKE")
-    static abstract class Invoke extends Node {
-        private static final int SIZE = 5;
-        @CompilerDirectives.CompilationFinal(dimensions = 1)
-        private final String[] selectors = new String[SIZE];
-        @Children
-        private final SelfCode[] messages = new SelfCode[SIZE];
+    static abstract class InvokeMessage extends Node {
+        abstract SelfObject execute(VirtualFrame frame, SelfObject obj, String member, Object[] args);
 
-        @ExplodeLoop
-        Object access(VirtualFrame frame, SelfObject obj, String member, Object... args) {
-            for (int i = 0; i < selectors.length; i++) {
-                if (selectors[i] == null) {
-                    CompilerDirectives.transferToInterpreterAndInvalidate();
-                    messages[i] = insert(newMessageHandler(member, args.length));
-                    selectors[i] = member;
-                }
-                if (selectors[i].equals(member)) {
-                    return messages[i].sendMessage(obj, args);
-                }
-            }
-            return handleTooManyMessages(obj, member, args);
+        @Specialization(limit = "5", guards = {
+            "cachedMember.equals(member)",
+            "cachedArity == args.length"
+        })
+        static SelfObject sendMessage(
+            SelfObject obj,
+            String member,
+            Object[] args,
+            @Cached("member") String cachedMember,
+            @Cached("args.length") int cachedArity,
+            @Cached("newMessageHandler(member, cachedArity)") SelfCode message
+        ) {
+            return message.sendMessage(obj, args);
         }
 
-        @CompilerDirectives.TruffleBoundary
-        private SelfObject handleTooManyMessages(SelfObject obj, String member, Object[] args) {
-            return newMessageHandler(member, args.length).sendMessage(obj, args);
-        }
-
-        private static SelfCode newMessageHandler(String message, int arity) {
+        static SelfCode newMessageHandler(String message, int arity) {
             CompilerAsserts.neverPartOfCompilation();
             SelfSelector selector = SelfSelector.keyword(message);
             SelfCode receiver = SelfCode.self();
@@ -96,6 +87,17 @@ final class SelfInterop {
             }
             final SelfCode msg = SelfCode.keywordMessage(receiver, selector, values);
             return msg;
+        }
+    }
+
+    @Resolve(message = "INVOKE")
+    static abstract class Invoke extends Node {
+        @Child
+        private InvokeMessage node = SelfInteropFactory.InvokeMessageNodeGen.create();
+
+        @ExplodeLoop
+        Object access(VirtualFrame frame, SelfObject obj, String member, Object... args) {
+            return node.execute(frame, obj, member, args);
         }
     }
 }

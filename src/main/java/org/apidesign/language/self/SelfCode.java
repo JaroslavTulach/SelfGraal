@@ -176,7 +176,7 @@ abstract class SelfCode extends Node {
 
         @Override
         SelfObject sendMessage(SelfObject self, Object... args) {
-            return fn.apply(self, args);
+            return fn.apply(self, null);
         }
     }
 

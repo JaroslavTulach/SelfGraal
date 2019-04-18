@@ -57,22 +57,22 @@ final class SelfPrimitives {
         this.TRUE = SelfObject.newBuilder().
             wrapper(Boolean.TRUE).
             slot("not", SelfObject.newBuilder().code(lang, (self, __) -> valueOf(false)).build()).
-            slot("ifTrue:False:", SelfObject.newBuilder().code(lang, (self, args) -> {
-                return evalBlock(self, (SelfObject) args[0]);
+            slot("ifTrue:False:", SelfObject.newBuilder().argument(":t").argument(":f").code(lang, (self, args) -> {
+                return evalBlock(self, (SelfObject) self.get("t"));
             }).build()).
             build();
 
         this.FALSE = SelfObject.newBuilder().
             wrapper(Boolean.FALSE).
             slot("not", SelfObject.newBuilder().code(lang, (self, __) -> valueOf(true)).build()).
-            slot("ifTrue:False:", SelfObject.newBuilder().code(lang, (self, args) -> {
-                return evalBlock(self, (SelfObject) args[1]);
+            slot("ifTrue:False:", SelfObject.newBuilder().argument(":t").argument(":f").code(lang, (self, args) -> {
+                return evalBlock(self, (SelfObject) self.get("f"));
             }).build()).
             build();
 
         this.NUMBERS = SelfObject.newBuilder().
-            slot("+", SelfObject.newBuilder().code(lang, (self, arg) -> {
-                Optional<Object> valueArg = findWrappedValue(arg[0]);
+            slot("+", SelfObject.newBuilder().argument(":b").code(lang, (self, arg) -> {
+                Optional<Object> valueArg = findWrappedValue(self.get("b"));
                 Optional<Object> valueNum = findWrappedValue(self);
                 if (valueArg.isPresent() && valueNum.isPresent()) {
                     if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
@@ -82,8 +82,8 @@ final class SelfPrimitives {
                 }
                 return valueOf(self.toString() + Objects.toString(arg[0]));
             }).build()).
-            slot("-", SelfObject.newBuilder().code(lang, (self, arg) -> {
-                Optional<Object> valueArg = findWrappedValue(arg[0]);
+            slot("-", SelfObject.newBuilder().argument(":b").code(lang, (self, arg) -> {
+                Optional<Object> valueArg = findWrappedValue(self.get("b"));
                 Optional<Object> valueNum = findWrappedValue(self);
                 if (valueArg.isPresent() && valueNum.isPresent()) {
                     if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
@@ -93,8 +93,8 @@ final class SelfPrimitives {
                 }
                 throw new IllegalStateException(valueArg + " " + valueNum);
             }).build()).
-            slot("<", SelfObject.newBuilder().code(lang, (self, arg) -> {
-                Optional<Object> valueArg = findWrappedValue(arg[0]);
+            slot("<", SelfObject.newBuilder().argument(":b").code(lang, (self, arg) -> {
+                Optional<Object> valueArg = findWrappedValue(self.get("b"));
                 Optional<Object> valueNum = findWrappedValue(self);
                 if (valueArg.isPresent() && valueNum.isPresent()) {
                     if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {

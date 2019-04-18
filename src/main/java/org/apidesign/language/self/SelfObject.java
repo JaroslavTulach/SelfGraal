@@ -40,6 +40,7 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.interop.ForeignAccess;
 import com.oracle.truffle.api.interop.TruffleObject;
@@ -53,10 +54,10 @@ import java.util.function.BiFunction;
 class SelfObject implements Cloneable, TruffleObject {
     private final boolean block;
     private final Map<String, Object> slots;
-    private final SelfCode code;
+    private final CallTarget code;
     private final SelfObject parent;
 
-    private SelfObject(Map<String, Object> slots, SelfCode code, SelfObject parent, boolean block) {
+    private SelfObject(Map<String, Object> slots, CallTarget code, SelfObject parent, boolean block) {
         this.slots = slots;
         this.code = code;
         this.parent = parent;
@@ -69,80 +70,6 @@ class SelfObject implements Cloneable, TruffleObject {
             v = parent.get(name);
         }
         return v;
-    }
-
-    private static final SelfObject TRUE = SelfObject.newBuilder().
-        wrapper(Boolean.TRUE).
-        slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(false)).build()).
-        slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return evalBlock(self, (SelfObject) args[0]);
-        }).build()).
-        build();
-
-    private static final SelfObject FALSE = SelfObject.newBuilder().
-        wrapper(Boolean.FALSE).
-        slot("not", SelfObject.newBuilder().code((self, __) -> valueOf(true)).build()).
-        slot("ifTrue:False:", SelfObject.newBuilder().code((self, args) -> {
-            return evalBlock(self, (SelfObject) args[1]);
-        }).build()).
-        build();
-
-    static SelfObject valueOf(boolean value) {
-        return value ? TRUE : FALSE;
-    }
-
-    private static SelfObject evalBlock(SelfObject self, SelfObject block, Object... args) {
-        SelfObject res;
-        if (block.block && block.code != null) {
-            res = block.code.sendMessage(block, args);
-        } else {
-            res = block;
-        }
-        return res;
-    }
-
-    private static final SelfObject NUMBERS = SelfObject.newBuilder().
-        slot("+", SelfObject.newBuilder().code((self, arg) -> {
-            Optional<Object> valueArg = findWrappedValue(arg[0]);
-            Optional<Object> valueNum = findWrappedValue(self);
-            if (valueArg.isPresent() && valueNum.isPresent()) {
-                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
-                    int res = ((Number)valueNum.get()).intValue() + ((Number)valueArg.get()).intValue();
-                    return SelfObject.valueOf(res);
-                }
-            }
-            return SelfObject.valueOf(self.toString() + Objects.toString(arg[0]));
-        }).build()).
-        slot("-", SelfObject.newBuilder().code((self, arg) -> {
-            Optional<Object> valueArg = findWrappedValue(arg[0]);
-            Optional<Object> valueNum = findWrappedValue(self);
-            if (valueArg.isPresent() && valueNum.isPresent()) {
-                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
-                    int res = ((Number)valueNum.get()).intValue() - ((Number)valueArg.get()).intValue();
-                    return SelfObject.valueOf(res);
-                }
-            }
-            throw new IllegalStateException(valueArg + " " + valueNum);
-        }).build()).
-        slot("<", SelfObject.newBuilder().code((self, arg) -> {
-            Optional<Object> valueArg = findWrappedValue(arg[0]);
-            Optional<Object> valueNum = findWrappedValue(self);
-            if (valueArg.isPresent() && valueNum.isPresent()) {
-                if (valueArg.get() instanceof Number && valueNum.get() instanceof Number) {
-                    boolean res = ((Number)valueNum.get()).intValue() < ((Number)valueArg.get()).intValue();
-                    return SelfObject.valueOf(res);
-                }
-            }
-            return SelfObject.valueOf(false);
-        }).build()).
-        build();
-    static SelfObject valueOf(int number) {
-        return new Wrapper<>(NUMBERS, null, number);
-    }
-
-    private static final SelfObject TEXTS = SelfObject.newBuilder().build();
-    static SelfObject valueOf(String text) {
-        return new Wrapper<>(TEXTS, null, text);
     }
 
     static Builder newBuilder() {
@@ -171,6 +98,10 @@ class SelfObject implements Cloneable, TruffleObject {
         return SelfInteropForeign.ACCESS;
     }
 
+    CallTarget blockCode() {
+        return block ? code : null;
+    }
+
     SelfObject evalSelf(SelfObject self, Object[] values) {
         if (code == null) {
             return this;
@@ -179,7 +110,7 @@ class SelfObject implements Cloneable, TruffleObject {
             if (methodActivation.block) {
                 return methodActivation;
             }
-            return code.sendMessage(methodActivation, values);
+            return (SelfObject) code.call(methodActivation, values);
         }
     }
 
@@ -205,17 +136,18 @@ class SelfObject implements Cloneable, TruffleObject {
 
     static final class Builder {
         private Map<String, Object> slots;
-        private SelfCode code;
+        private CallTarget code;
         private boolean block;
         private Object wrapper;
+        private SelfObject parent;
 
-        Builder code(SelfCode expr) {
+        Builder code(CallTarget expr) {
             code = expr;
             return this;
         }
 
-        Builder code(BiFunction<SelfObject, Object[], SelfObject> fn) {
-            code = SelfCode.compute(fn);
+        Builder code(SelfLanguage lang, BiFunction<SelfObject, Object[], SelfObject> fn) {
+            code = SelfCode.toCallTarget(lang, SelfCode.compute(fn));
             return this;
         }
 
@@ -229,11 +161,16 @@ class SelfObject implements Cloneable, TruffleObject {
             return this;
         }
 
+        Builder parent(SelfObject parent) {
+            this.parent = parent;
+            return this;
+        }
+
         SelfObject build() {
             if (wrapper != null) {
-                return new Wrapper(null, slots, wrapper);
+                return new Wrapper(parent, slots, wrapper);
             }
-            return new SelfObject(slots, code, null, block);
+            return new SelfObject(slots, code, parent, block);
         }
 
         private Map<String,Object> slots() {
@@ -243,7 +180,7 @@ class SelfObject implements Cloneable, TruffleObject {
             return slots;
         }
 
-        private Builder wrapper(Object obj) {
+        Builder wrapper(Object obj) {
             this.wrapper = obj;
             return this;
         }

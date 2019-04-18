@@ -46,14 +46,21 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.Test;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
 
 public class SelfParserTest {
+    private SelfParser parser;
 
     public SelfParserTest() {
+    }
+
+    @Before
+    public void setupParser() {
+        parser = new SelfParser(null, new SelfPrimitives(null));
     }
 
     @Test
@@ -195,27 +202,27 @@ public class SelfParserTest {
     @Test
     public void parseCodeObject() {
         Source s = Source.newBuilder("Self", "( 1 + 2 )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertNotNull("Object created", obj);
     }
     @Test
     public void parseEmptyObject() {
         Source s = Source.newBuilder("Self", "()", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithSlots() {
         Source s = Source.newBuilder("Self", "( | | )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithOneSlot() {
         Source s = Source.newBuilder("Self", "( | x = 's' | )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertProperty(obj, "x", "'s'");
     }
 
@@ -233,29 +240,29 @@ public class SelfParserTest {
     @Test
     public void parseIdFn() {
         Source s = Source.newBuilder("Self", "( | id: n = ( ^n ) | )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertProperty(obj, "id:", null);
     }
 
     @Test
     public void parsePlusFn() {
         Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | )", "plus.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertProperty(obj, "plus:", null);
     }
 
     @Test
     public void parseConstantFn() {
         Source s = Source.newBuilder("Self", "( | id: n = 'e' | )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
-        SelfParser.parse(s);
+        Object obj = parser.parse(s).sendMessage(null);
+        parser.parse(s);
         assertProperty(obj, "id:", "'e'");
     }
 
     @Test
     public void parseEmptyObjectWithTwoSlots() {
         Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
-        Object obj = SelfParser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).sendMessage(null);
         assertProperty(obj, "x", "'s'");
         assertProperty(obj, "y", "3");
     }

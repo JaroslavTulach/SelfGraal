@@ -79,11 +79,12 @@ final class SelfInterop {
 
         static SelfCode newMessageHandler(String message, int arity) {
             CompilerAsserts.neverPartOfCompilation();
+            SelfLanguage lang = SelfLanguage.getCurrent();
             SelfSelector selector = SelfSelector.keyword(message);
             SelfCode receiver = SelfCode.self();
             SelfCode[] values = new SelfCode[arity];
             for (int i = 0; i < arity; i++) {
-                values[i] = SelfCode.convertArgument(i);
+                values[i] = SelfCode.convertArgument(lang.getPrimitives(), i);
             }
             final SelfCode msg = SelfCode.keywordMessage(receiver, selector, values);
             return msg;

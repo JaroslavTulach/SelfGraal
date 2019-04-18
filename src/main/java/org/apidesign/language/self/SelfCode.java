@@ -40,10 +40,14 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.api.Truffle;
+import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.nodes.RootNode;
 import java.util.function.BiFunction;
 
 abstract class SelfCode extends Node {
@@ -56,8 +60,8 @@ abstract class SelfCode extends Node {
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode convertArgument(int arg) {
-        return new Convert(arg);
+    static SelfCode convertArgument(SelfPrimitives primitives, int arg) {
+        return new Convert(primitives, arg);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -178,22 +182,48 @@ abstract class SelfCode extends Node {
 
     private static class Convert extends SelfCode {
         private final int index;
+        private final SelfPrimitives primitives;
 
-        public Convert(int index) {
+        Convert(SelfPrimitives primitives, int index) {
             this.index = index;
+            this.primitives = primitives;
         }
 
         @Override
         SelfObject sendMessage(SelfObject self, Object... args) {
             Object value = args[index];
             if (value instanceof Number) {
-                return SelfObject.valueOf(((Number) value).intValue());
+                return primitives.valueOf(((Number) value).intValue());
             } else if (value instanceof Boolean) {
-                return SelfObject.valueOf((Boolean) value);
+                return primitives.valueOf((Boolean) value);
             } else if (value instanceof String) {
-                return SelfObject.valueOf((String) value);
+                return primitives.valueOf((String) value);
             }
             return (SelfObject) value;
         }
+    }
+
+    static CallTarget toCallTarget(final SelfLanguage l, SelfCode code) {
+        RootNode root = new SelfCode.Root(l, code);
+        return Truffle.getRuntime().createCallTarget(root);
+    }
+
+
+    static final class Root extends RootNode {
+        private final SelfCode code;
+
+        private Root(SelfLanguage language, SelfCode code) {
+            super(language);
+            this.code = code;
+        }
+
+        @Override
+        public Object execute(VirtualFrame frame) {
+            SelfObject self = (SelfObject) frame.getArguments()[0];
+            Object[] args = (Object[]) frame.getArguments()[1];
+            SelfObject result = code.sendMessage(self, args);
+            return result;
+        }
+
     }
 }

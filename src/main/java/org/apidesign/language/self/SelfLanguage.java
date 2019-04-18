@@ -47,7 +47,9 @@ import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.nodes.RootNode;
 
 @TruffleLanguage.Registration(name = "Self", id = "Self", characterMimeTypes = SelfTokenId.MIMETYPE)
-public class SelfLanguage extends TruffleLanguage<SelfData> {
+public final class SelfLanguage extends TruffleLanguage<SelfData> {
+    private SelfPrimitives primitives;
+    private SelfParser parser;
 
     @Override
     protected SelfData createContext(Env env) {
@@ -55,8 +57,16 @@ public class SelfLanguage extends TruffleLanguage<SelfData> {
     }
 
     @Override
+    protected void initializeContext(SelfData context) throws Exception {
+        if (parser == null) {
+            primitives = new SelfPrimitives(this);
+            parser = new SelfParser(this, primitives);
+        }
+    }
+
+    @Override
     protected CallTarget parse(ParsingRequest request) throws Exception {
-        SelfCode node = SelfParser.parse(request.getSource());
+        SelfCode node = parser.parse(request.getSource());
         SelfSource root = new SelfSource(this, node);
         return Truffle.getRuntime().createCallTarget(root);
     }
@@ -64,6 +74,14 @@ public class SelfLanguage extends TruffleLanguage<SelfData> {
     @Override
     protected boolean isObjectOfLanguage(Object object) {
         return object instanceof SelfObject;
+    }
+
+    static SelfLanguage getCurrent() {
+        return getCurrentLanguage(SelfLanguage.class);
+    }
+
+    SelfPrimitives getPrimitives() {
+        return primitives;
     }
 }
 

@@ -40,6 +40,7 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.profiles.ConditionProfile;
 import com.oracle.truffle.api.source.Source;
 import static org.apidesign.language.self.PEParser.*;
@@ -50,18 +51,23 @@ import org.netbeans.api.lexer.TokenId;
 import org.netbeans.api.lexer.TokenSequence;
 
 final class SelfParser {
-    private static final PEParser PARSER;
-    static {
-        PARSER = new PEParser();
+    private final PEParser parser;
+    private final SelfLanguage lang;
+    private final SelfPrimitives primitives;
+
+    SelfParser(SelfLanguage lang, SelfPrimitives primitives) {
+        this.lang = lang;
+        this.primitives = primitives;
+        this.parser = new PEParser();
         // create the rules
-        Rule<SelfObject> statement = PARSER.rule("statement");
-        Rule<SelfObject> objectLiteral = PARSER.rule("object");
-        Rule<SelfCode> exprlist = PARSER.rule("exprlist");
-        Rule<SelfObject> constant = PARSER.rule("constant");
-        Rule<SelfCode> unaryLevel = PARSER.rule("unaryLevel");
-        Rule<SelfCode> binaryLevel = PARSER.rule("binaryLevel");
-        Rule<SelfCode> keywordLevel = PARSER.rule("keywordLevel");
-        Rule<SelfCode> expression = PARSER.rule("expression");
+        Rule<SelfObject> statement = parser.rule("statement");
+        Rule<SelfObject> objectLiteral = parser.rule("object");
+        Rule<SelfCode> exprlist = parser.rule("exprlist");
+        Rule<SelfObject> constant = parser.rule("constant");
+        Rule<SelfCode> unaryLevel = parser.rule("unaryLevel");
+        Rule<SelfCode> binaryLevel = parser.rule("binaryLevel");
+        Rule<SelfCode> keywordLevel = parser.rule("keywordLevel");
+        Rule<SelfCode> expression = parser.rule("expression");
 
         Element<ListItem<IdArg>> slotId = alt(
                 ref(SelfTokenId.IDENTIFIER, (t) -> {
@@ -148,12 +154,12 @@ final class SelfParser {
                             slts = slts.prev;
                         }
                         if (expr.isPresent()) {
-                            builder.code(expr.get());
+                            builder.code(toCallTarget(expr.get()));
                         }
                         return builder;
                     }),
                     seq(exprlist, ref(SelfTokenId.RPAREN), (expr, rparen) -> {
-                        return SelfObject.newBuilder().code(expr);
+                        return SelfObject.newBuilder().code(toCallTarget(expr));
                     }),
                     ref(SelfTokenId.RPAREN, (rparen) -> SelfObject.newBuilder())
                 ),
@@ -175,12 +181,12 @@ final class SelfParser {
                             slts = slts.prev;
                         }
                         if (expr.isPresent()) {
-                            builder.code(expr.get());
+                            builder.code(toCallTarget(expr.get()));
                         }
                         return builder;
                     }),
                     seq(exprlist, ref(SelfTokenId.RBRACKET), (expr, rparen) -> {
-                        return SelfObject.newBuilder().code(expr);
+                        return SelfObject.newBuilder().code(toCallTarget(expr));
                     }),
                     ref(SelfTokenId.RBRACKET, (rparen) -> SelfObject.newBuilder())
                 ),
@@ -195,13 +201,13 @@ final class SelfParser {
 
         final Element<SelfObject> constantDef = alt(
             ref(SelfTokenId.BOOLEAN, (t) -> {
-                return SelfObject.valueOf(Boolean.valueOf(t.text().toString()));
+                return primitives.valueOf(Boolean.valueOf(t.text().toString()));
             }),
             ref(SelfTokenId.STRING, (t) -> {
-                return SelfObject.valueOf(t.text().toString());
+                return primitives.valueOf(t.text().toString());
             }),
             ref(SelfTokenId.NUMBER, (t) -> {
-                return SelfObject.valueOf(Integer.valueOf(t.text().toString()));
+                return primitives.valueOf(Integer.valueOf(t.text().toString()));
             }),
             objectLiteral
         );
@@ -285,7 +291,11 @@ final class SelfParser {
             SelfCode[] arr = ListItem.toArray(whole, SelfCode[]::new);
             return SelfCode.block(arr);
         }));
-        PARSER.initialize(exprlist);
+        parser.initialize(exprlist);
+    }
+
+    private CallTarget toCallTarget(SelfCode code) {
+        return SelfCode.toCallTarget(lang, code);
     }
 
     private static class IdArg {
@@ -334,7 +344,7 @@ final class SelfParser {
     }
 
 
-    public static SelfCode parse(Source s) {
+    public SelfCode parse(Source s) {
         TokenSequence<SelfTokenId> seq = TokenHierarchy.create(s.getCharacters(), SelfTokenId.language()).tokenSequence(SelfTokenId.language());
         class SeqLexer implements PELexer {
             private final Object[] self = new Object[] { this };
@@ -403,7 +413,7 @@ final class SelfParser {
             }
         }
         final PELexer lexer = new SeqLexer();
-        SelfCode code = (SelfCode) PARSER.parse(lexer);
+        SelfCode code = (SelfCode) parser.parse(lexer);
         assert lexer.peek(null) == null : "Fully parsed: " + seq;
         return code;
     }

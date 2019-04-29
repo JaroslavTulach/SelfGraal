@@ -106,15 +106,12 @@ class SelfObject implements Cloneable, TruffleObject {
         if (code == null) {
             return this;
         } else {
-            SelfObject methodActivation = cloneWithArgs(self, values);
-            if (methodActivation.block) {
-                return methodActivation;
-            }
-            return (SelfObject) code.call(methodActivation, values);
+            return (SelfObject) code.call(this, self, values);
         }
     }
 
-    private SelfObject cloneWithArgs(SelfObject parent, Object[] args) {
+    @CompilerDirectives.TruffleBoundary
+    final SelfObject cloneWithArgs(SelfObject parent, Object[] args) {
         assert code != null;
         Map<String, Object> slotsClone;
         if (slots == null) {

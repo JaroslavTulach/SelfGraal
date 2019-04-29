@@ -117,7 +117,7 @@ final class SelfPrimitives {
         CallTarget code = block.blockCode();
         SelfObject res;
         if (code != null) {
-            res = (SelfObject) code.call(block, args);
+            res = (SelfObject) code.call(self, block, args);
         } else {
             res = block;
         }

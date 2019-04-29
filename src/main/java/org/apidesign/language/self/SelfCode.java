@@ -219,9 +219,14 @@ abstract class SelfCode extends Node {
 
         @Override
         public Object execute(VirtualFrame frame) {
-            SelfObject self = (SelfObject) frame.getArguments()[0];
-            Object[] args = (Object[]) frame.getArguments()[1];
-            SelfObject result = code.sendMessage(self, args);
+            SelfObject thiz = (SelfObject) frame.getArguments()[0];
+            SelfObject self = (SelfObject) frame.getArguments()[1];
+            Object[] values = (Object[]) frame.getArguments()[2];
+            SelfObject methodActivation = thiz.cloneWithArgs(self, values);
+            if (methodActivation.blockCode() != null) {
+                return methodActivation;
+            }
+            SelfObject result = code.sendMessage(methodActivation, values);
             return result;
         }
 

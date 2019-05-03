@@ -47,7 +47,6 @@ import com.oracle.truffle.api.interop.TruffleObject;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 

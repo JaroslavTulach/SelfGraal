@@ -9,15 +9,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <graalvm.version>1.0.0-rc14</graalvm.version>
+        <graalvm.version>1.0.0-rc16</graalvm.version>
     </properties>
-    <repositories>
-        <repository>
-            <id>netbeans</id>
-            <name>NetBeans</name>
-            <url>https://repository.apache.org/content/repositories/orgapachenetbeans-1012/</url>
-        </repository>
-    </repositories>
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
@@ -28,7 +21,7 @@
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-lexer</artifactId>
-            <version>RELEASE100</version>
+            <version>RELEASE110</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

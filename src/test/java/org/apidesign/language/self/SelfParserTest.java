@@ -202,27 +202,27 @@ public class SelfParserTest {
     @Test
     public void parseCodeObject() {
         Source s = Source.newBuilder("Self", "( 1 + 2 )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertNotNull("Object created", obj);
     }
     @Test
     public void parseEmptyObject() {
         Source s = Source.newBuilder("Self", "()", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithSlots() {
         Source s = Source.newBuilder("Self", "( | | )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertNotNull("Object created", obj);
     }
 
     @Test
     public void parseEmptyObjectWithOneSlot() {
         Source s = Source.newBuilder("Self", "( | x = 's' | )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertProperty(obj, "x", "'s'");
     }
 
@@ -240,21 +240,21 @@ public class SelfParserTest {
     @Test
     public void parseIdFn() {
         Source s = Source.newBuilder("Self", "( | id: n = ( ^n ) | )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertProperty(obj, "id:", null);
     }
 
     @Test
     public void parsePlusFn() {
         Source s = Source.newBuilder("Self", "( | plus: n = ( n + 1 ) | )", "plus.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertProperty(obj, "plus:", null);
     }
 
     @Test
     public void parseConstantFn() {
         Source s = Source.newBuilder("Self", "( | id: n = 'e' | )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         parser.parse(s);
         assertProperty(obj, "id:", "'e'");
     }
@@ -262,7 +262,7 @@ public class SelfParserTest {
     @Test
     public void parseEmptyObjectWithTwoSlots() {
         Source s = Source.newBuilder("Self", "( | x = 's' . y = 3 | )", "empty.sf").build();
-        Object obj = parser.parse(s).sendMessage(null);
+        Object obj = parser.parse(s).executeMessage(null, null);
         assertProperty(obj, "x", "'s'");
         assertProperty(obj, "y", "3");
     }

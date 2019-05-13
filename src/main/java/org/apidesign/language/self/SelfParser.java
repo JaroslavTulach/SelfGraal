@@ -222,15 +222,18 @@ final class SelfParser {
             SelfCode[] receiver = { null };
             if (t instanceof SelfObject) {
                 // constant
-                receiver[0] = SelfCode.constant((SelfObject) t);
+                receiver[0] = SelfCode.constant(0, 0, (SelfObject) t);
             } else {
-                final SelfSelector selector = SelfSelector.keyword(((Token<?>)t).text().toString());
+                final Token<?> token = (Token<?>)t;
+                int offset = token.offset(null);
+                int len = token.length();
+                final SelfSelector selector = SelfSelector.keyword(token.text().toString());
                 // identifier - default receiver is self
-                receiver[0] = SelfCode.unaryMessage(SelfCode.self(), selector);
+                receiver[0] = SelfCode.unaryMessage(offset, len, SelfCode.self(), selector);
             }
             ListItem.firstToLast(u, (item) -> {
                 final SelfSelector msg = SelfSelector.keyword(u.item.text().toString());
-                receiver[0] = SelfCode.unaryMessage(receiver[0], msg);
+                receiver[0] = SelfCode.unaryMessage(0, 0, receiver[0], msg);
             });
             return receiver[0];
         }));
@@ -250,14 +253,17 @@ final class SelfParser {
                     SelfCode[] tree = { unary };
                     String[] previousText = { null };
                     ListItem.firstToLast(operatorAndArgument, (opArg) -> {
-                        String operator = ((Token<?>) opArg[0]).text().toString();
+                        final Token<?> token = (Token<?>) opArg[0];
+                        int offset = token.offset(null);
+                        int len = token.length();
+                        String operator = token.text().toString();
                         if (previousText[0] != null && !previousText[0].equals(operator)) {
                             throw new IllegalStateException("no precedence for binary operator - please use parentheses for " + previousText[0] + " and " + operator);
                         }
                         previousText[0] = operator;
                         SelfCode arg = (SelfCode) opArg[1];
                         final SelfSelector msg = SelfSelector.keyword(operator);
-                        tree[0] = SelfCode.binaryMessage(tree[0], msg, arg);
+                        tree[0] = SelfCode.binaryMessage(offset, len, tree[0], msg, arg);
                     });
                     return tree[0];
                 }
@@ -339,7 +345,7 @@ final class SelfParser {
                 head = head.prev;
             }
             SelfSelector selector = SelfSelector.keyword(selectorParts);
-            return SelfCode.keywordMessage(self, selector, args);
+            return SelfCode.keywordMessage(0, 0, self, selector, args);
         }
     }
 

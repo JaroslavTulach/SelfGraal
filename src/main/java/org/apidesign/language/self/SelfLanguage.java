@@ -44,9 +44,13 @@ import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.instrumentation.ProvidedTags;
+import com.oracle.truffle.api.instrumentation.StandardTags;
 import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.api.source.Source;
 
 @TruffleLanguage.Registration(name = "Self", id = "Self", characterMimeTypes = SelfTokenId.MIMETYPE)
+@ProvidedTags(StandardTags.StatementTag.class)
 public final class SelfLanguage extends TruffleLanguage<SelfData> {
     private SelfPrimitives primitives;
     private SelfParser parser;
@@ -67,7 +71,7 @@ public final class SelfLanguage extends TruffleLanguage<SelfData> {
     @Override
     protected CallTarget parse(ParsingRequest request) throws Exception {
         SelfCode node = parser.parse(request.getSource());
-        SelfSource root = new SelfSource(this, node);
+        SelfSource root = new SelfSource(this, request.getSource(), node);
         return Truffle.getRuntime().createCallTarget(root);
     }
 
@@ -86,10 +90,13 @@ public final class SelfLanguage extends TruffleLanguage<SelfData> {
 }
 
 final class SelfSource extends RootNode {
-    private final SelfCode node;
+    @Child
+    private SelfCode node;
+    final Source source;
 
-    SelfSource(TruffleLanguage<?> language, SelfCode node) {
+    SelfSource(SelfLanguage language, Source source, SelfCode node) {
         super(language);
+        this.source = source;
         this.node = node;
     }
 
@@ -97,7 +104,7 @@ final class SelfSource extends RootNode {
     public Object execute(VirtualFrame frame) {
         final Object[] args = frame.getArguments();
         SelfObject self = (SelfObject) (args.length == 0 ? null : args[0]);
-        return node.sendMessage(self);
+        return node.executeMessage(frame, self);
     }
 
 }

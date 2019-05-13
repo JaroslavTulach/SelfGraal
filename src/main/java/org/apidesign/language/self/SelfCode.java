@@ -44,19 +44,43 @@ import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.instrumentation.GenerateWrapper;
+import com.oracle.truffle.api.instrumentation.InstrumentableNode;
+import com.oracle.truffle.api.instrumentation.ProbeNode;
+import com.oracle.truffle.api.instrumentation.StandardTags;
+import com.oracle.truffle.api.instrumentation.Tag;
 import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.api.source.SourceSection;
 import java.util.function.BiFunction;
 
-abstract class SelfCode extends Node {
+@GenerateWrapper
+abstract class SelfCode extends Node implements InstrumentableNode {
+    abstract SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args);
+    abstract int offset();
+    abstract int length();
 
-    abstract SelfObject sendMessage(SelfObject self, Object... args);
+    @Override
+    public boolean isInstrumentable() {
+        return true;
+    }
 
+    @Override
+    public SourceSection getSourceSection() {
+        SelfSource src = (SelfSource) getRootNode();
+        return src.source.createSection(offset(), length());
+    }
+
+    @Override
+    public WrapperNode createWrapper(ProbeNode probe) {
+        return new SelfCodeWrapper(this, probe);
+    }
+    
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode constant(SelfObject obj) {
-        return new Constant(obj);
+    static SelfCode constant(int offset, int length, SelfObject obj) {
+        return new Constant(offset, length, obj);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -75,18 +99,18 @@ abstract class SelfCode extends Node {
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode unaryMessage(SelfCode receiver, SelfSelector message) {
-        return new Message(receiver, message);
+    static SelfCode unaryMessage(int offset, int length, SelfCode receiver, SelfSelector message) {
+        return new Message(offset, length, receiver, message);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode binaryMessage(SelfCode receiver, SelfSelector message, SelfCode arg) {
-        return new Message(receiver, message, arg);
+    static SelfCode binaryMessage(int offset, int length, SelfCode receiver, SelfSelector message, SelfCode arg) {
+        return new Message(offset, length, receiver, message, arg);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode keywordMessage(SelfCode receiver, SelfSelector selector, SelfCode... args) {
-        return new Message(receiver, selector, args);
+    static SelfCode keywordMessage(int offset, int length, SelfCode receiver, SelfSelector selector, SelfCode... args) {
+        return new Message(offset, length, receiver, selector, args);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -96,13 +120,17 @@ abstract class SelfCode extends Node {
 
     private static class Constant extends SelfCode {
         private final SelfObject obj;
+        private final int offset;
+        private final int length;
 
-        Constant(SelfObject obj) {
+        Constant(int offset, int length, SelfObject obj) {
+            this.offset = offset;
+            this.length = length;
             this.obj = obj;
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             return obj.evalSelf(self, args);
         }
 
@@ -110,12 +138,32 @@ abstract class SelfCode extends Node {
         public String toString() {
             return "[Constant=" + obj + "]";
         }
+
+        @Override
+        int offset() {
+            return offset;
+        }
+
+        @Override
+        int length() {
+            return length;
+        }
     }
 
     private static class Self extends SelfCode {
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             return self;
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -125,8 +173,12 @@ abstract class SelfCode extends Node {
         @Children
         private SelfCode[] args;
         private final SelfSelector message;
+        private final int length;
+        private final int offset;
 
-        Message(SelfCode receiver, SelfSelector message, SelfCode... args) {
+        Message(int offset, int length, SelfCode receiver, SelfSelector message, SelfCode... args) {
+            this.offset = offset;
+            this.length = length;
             this.receiver = receiver;
             this.message = message;
             this.args = args;
@@ -134,17 +186,32 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, Object... myArgs) {
-            SelfObject obj = receiver.sendMessage(self);
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... myArgs) {
+            SelfObject obj = receiver.executeMessage(frame, self);
             SelfObject[] values = new SelfObject[args.length];
             for (int i = 0; i < args.length; i++) {
-                values[i] = args[i].sendMessage(self, myArgs);
+                values[i] = args[i].executeMessage(frame, self, myArgs);
             }
             final SelfObject msg = (SelfObject) obj.get(message.toString());
             if (msg == null) {
                 throw UnknownIdentifierException.raise(message.toString());
             }
             return msg.evalSelf(obj, values);
+        }
+
+        @Override
+        int offset() {
+            return offset;
+        }
+
+        @Override
+        int length() {
+            return length;
+        }
+
+        @Override
+        public boolean hasTag(Class<? extends Tag> tag) {
+            return tag == StandardTags.StatementTag.class;
         }
     }
 
@@ -155,15 +222,27 @@ abstract class SelfCode extends Node {
         Block(SelfCode[] children) {
             this.children = children;
         }
+        
+        
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             SelfObject res = self;
             for (int i = 0; i < children.length; i++) {
-                res = children[i].sendMessage(self);
+                res = children[i].executeMessage(frame, self);
             }
             return res;
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -175,8 +254,18 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             return fn.apply(self, null);
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -190,7 +279,7 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             Object value = args[index];
             if (value instanceof Number) {
                 return primitives.valueOf(((Number) value).intValue());
@@ -201,6 +290,16 @@ abstract class SelfCode extends Node {
             }
             return (SelfObject) value;
         }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
+        }
     }
 
     static CallTarget toCallTarget(final SelfLanguage l, SelfCode code) {
@@ -209,7 +308,7 @@ abstract class SelfCode extends Node {
     }
 
 
-    static final class Root extends RootNode {
+    static final class Root extends RootNode implements InstrumentableNode {
         private final SelfCode code;
 
         private Root(SelfLanguage language, SelfCode code) {
@@ -226,8 +325,18 @@ abstract class SelfCode extends Node {
             if (methodActivation.blockCode() != null) {
                 return methodActivation;
             }
-            SelfObject result = code.sendMessage(methodActivation, values);
+            SelfObject result = code.executeMessage(frame, methodActivation, values);
             return result;
+        }
+
+        @Override
+        public boolean isInstrumentable() {
+            return code.isInstrumentable();
+        }
+
+        @Override
+        public WrapperNode createWrapper(ProbeNode probe) {
+            return null;
         }
 
     }

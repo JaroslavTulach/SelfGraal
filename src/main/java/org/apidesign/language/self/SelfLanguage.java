@@ -97,7 +97,7 @@ final class SelfSource extends RootNode {
     public Object execute(VirtualFrame frame) {
         final Object[] args = frame.getArguments();
         SelfObject self = (SelfObject) (args.length == 0 ? null : args[0]);
-        return node.executeMessage(self);
+        return node.executeMessage(frame, self);
     }
 
 }

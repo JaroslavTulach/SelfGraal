@@ -67,6 +67,7 @@ final class SelfInterop {
             "cachedArity == args.length"
         })
         static SelfObject sendMessage(
+            VirtualFrame frame,
             SelfObject obj,
             String member,
             Object[] args,
@@ -74,7 +75,7 @@ final class SelfInterop {
             @Cached("args.length") int cachedArity,
             @Cached("newMessageHandler(member, cachedArity)") SelfCode message
         ) {
-            return message.executeMessage(obj, args);
+            return message.executeMessage(frame, obj, args);
         }
 
         static SelfCode newMessageHandler(String message, int arity) {

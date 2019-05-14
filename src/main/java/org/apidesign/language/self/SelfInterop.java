@@ -74,7 +74,7 @@ final class SelfInterop {
             @Cached("args.length") int cachedArity,
             @Cached("newMessageHandler(member, cachedArity)") SelfCode message
         ) {
-            return message.sendMessage(obj, args);
+            return message.executeMessage(obj, args);
         }
 
         static SelfCode newMessageHandler(String message, int arity) {

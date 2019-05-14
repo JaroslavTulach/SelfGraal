@@ -52,7 +52,7 @@ import java.util.function.BiFunction;
 
 abstract class SelfCode extends Node {
 
-    abstract SelfObject sendMessage(SelfObject self, Object... args);
+    abstract SelfObject executeMessage(SelfObject self, Object... args);
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
     static SelfCode constant(SelfObject obj) {
@@ -102,7 +102,7 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(SelfObject self, Object... args) {
             return obj.evalSelf(self, args);
         }
 
@@ -114,7 +114,7 @@ abstract class SelfCode extends Node {
 
     private static class Self extends SelfCode {
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(SelfObject self, Object... args) {
             return self;
         }
     }
@@ -134,11 +134,11 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, Object... myArgs) {
-            SelfObject obj = receiver.sendMessage(self);
+        SelfObject executeMessage(SelfObject self, Object... myArgs) {
+            SelfObject obj = receiver.executeMessage(self);
             SelfObject[] values = new SelfObject[args.length];
             for (int i = 0; i < args.length; i++) {
-                values[i] = args[i].sendMessage(self, myArgs);
+                values[i] = args[i].executeMessage(self, myArgs);
             }
             final SelfObject msg = (SelfObject) obj.get(message.toString());
             if (msg == null) {
@@ -158,10 +158,10 @@ abstract class SelfCode extends Node {
 
         @ExplodeLoop
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(SelfObject self, Object... args) {
             SelfObject res = self;
             for (int i = 0; i < children.length; i++) {
-                res = children[i].sendMessage(self);
+                res = children[i].executeMessage(self);
             }
             return res;
         }
@@ -175,7 +175,7 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(SelfObject self, Object... args) {
             return fn.apply(self, null);
         }
     }
@@ -190,7 +190,7 @@ abstract class SelfCode extends Node {
         }
 
         @Override
-        SelfObject sendMessage(SelfObject self, Object... args) {
+        SelfObject executeMessage(SelfObject self, Object... args) {
             Object value = args[index];
             if (value instanceof Number) {
                 return primitives.valueOf(((Number) value).intValue());
@@ -226,7 +226,7 @@ abstract class SelfCode extends Node {
             if (methodActivation.blockCode() != null) {
                 return methodActivation;
             }
-            SelfObject result = code.sendMessage(methodActivation, values);
+            SelfObject result = code.executeMessage(methodActivation, values);
             return result;
         }
 

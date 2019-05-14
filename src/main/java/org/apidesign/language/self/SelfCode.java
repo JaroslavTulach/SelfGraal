@@ -53,6 +53,7 @@ import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
 import java.util.function.BiFunction;
 
@@ -69,8 +70,16 @@ abstract class SelfCode extends Node implements InstrumentableNode {
 
     @Override
     public SourceSection getSourceSection() {
-        SelfSource src = (SelfSource) getRootNode();
-        return src.source.createSection(offset(), length());
+        final RootNode rn = getRootNode();
+        Source src;
+        if (rn instanceof SelfSource) {
+            src = ((SelfSource)rn).source;
+        } else if (rn instanceof SelfCode.Root) {
+            src = ((SelfCode.Root)rn).source;
+        } else {
+            src = null;
+        }
+        return src == null ? null : src.createSection(offset(), length());
     }
 
     @Override
@@ -302,17 +311,20 @@ abstract class SelfCode extends Node implements InstrumentableNode {
         }
     }
 
-    static CallTarget toCallTarget(final SelfLanguage l, SelfCode code) {
-        RootNode root = new SelfCode.Root(l, code);
+    static CallTarget toCallTarget(final SelfLanguage l, Source src, SelfCode code) {
+        RootNode root = new SelfCode.Root(l, src, code);
         return Truffle.getRuntime().createCallTarget(root);
     }
 
 
     static final class Root extends RootNode implements InstrumentableNode {
-        private final SelfCode code;
+        @Child
+        private SelfCode code;
+        private final Source source;
 
-        private Root(SelfLanguage language, SelfCode code) {
+        private Root(SelfLanguage language, Source src, SelfCode code) {
             super(language);
+            this.source = src;
             this.code = code;
         }
 

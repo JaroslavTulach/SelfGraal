@@ -59,6 +59,7 @@ import com.oracle.truffle.api.nodes.ExplodeLoop.LoopExplosionKind;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
 import com.oracle.truffle.api.profiles.ConditionProfile;
+import com.oracle.truffle.api.source.Source;
 import static org.apidesign.language.self.Alternative.error;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
@@ -397,7 +398,7 @@ final class Alternative<T> extends Element<T> {
         CompilerDirectives.transferToInterpreter();
         throw error("no alternative found at " + lexer.position() + " in " + getRootNode().getName());
     }
-    
+
     static RuntimeException error(String message) {
         CompilerAsserts.neverPartOfCompilation();
         throw new RuntimeException(message);
@@ -510,7 +511,7 @@ final class TokenReference<TID extends TokenId, T> extends Element<T> {
             CompilerDirectives.transferToInterpreter();
             error("expecting " + lexer.tokenNames(token) + ", got " + lexer.tokenNames(actualToken) + " at " + lexer.position());
         }
-        return action.apply((Token<TID>) tokenId);
+        return action.apply(lexer.getSource(), (Token<TID>) tokenId);
     }
 }
 
@@ -568,7 +569,7 @@ public final class PEParser {
     }
 
     public static <T extends TokenId> Element<Token<T>> ref(T id) {
-        return ref(id, (t) -> t);
+        return ref(id, (s, t) -> t);
     }
 
     public static <T extends TokenId, R> Element<R> ref(T id, TokenFunction<T, R> action) {
@@ -594,7 +595,7 @@ public final class PEParser {
     }
 
     public interface TokenFunction<T extends TokenId, R> {
-        R apply(Token<T> token);
+        R apply(Source src, Token<T> token);
     }
 
     PEParser() {

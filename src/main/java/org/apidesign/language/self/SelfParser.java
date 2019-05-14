@@ -70,7 +70,7 @@ final class SelfParser {
         Rule<SelfCode> expression = parser.rule("expression");
 
         Element<ListItem<IdArg>> slotId = alt(
-                ref(SelfTokenId.IDENTIFIER, (t) -> {
+                ref(SelfTokenId.IDENTIFIER, (s, t) -> {
                     return new ListItem<>(null, new IdArg(t, null));
                 }),
                 seq(ref(SelfTokenId.KEYWORD_LOWERCASE), opt(alt(
@@ -85,7 +85,7 @@ final class SelfParser {
                         }),
                         seq(
                             ref(SelfTokenId.KEYWORD),rep(
-                                ref(SelfTokenId.KEYWORD, (key) -> {
+                                ref(SelfTokenId.KEYWORD, (__, key) -> {
                                     return new IdArg(key, null);
                                 }),
                                 ListItem::<IdArg>empty, ListItem::new, ListItem::self
@@ -128,7 +128,7 @@ final class SelfParser {
                         return new SlotInfo(messageSelector.toString(), mutable, false, c);
                     }
                 ),
-                ref(SelfTokenId.ARGUMENT, (t) -> SlotInfo.argument(t.text()))
+                ref(SelfTokenId.ARGUMENT, (s, t) -> SlotInfo.argument(t.text()))
         );
 
         final Element<SlotInfo> dotAndSlot = seq(ref(SelfTokenId.DOT), slot, ListItem::second);
@@ -143,7 +143,7 @@ final class SelfParser {
 
         Element<SelfObject> objectStatement = seq(
                 ref(SelfTokenId.LPAREN), alt(
-                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RPAREN), (bar, slts, expr, rparen) -> {
+                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RPAREN, (s, t) -> s), (bar, slts, expr, source) -> {
                         SelfObject.Builder builder = SelfObject.newBuilder();
                         while (slts != null) {
                             if (slts.item.argument) {
@@ -154,14 +154,14 @@ final class SelfParser {
                             slts = slts.prev;
                         }
                         if (expr.isPresent()) {
-                            builder.code(toCallTarget(expr.get()));
+                            builder.code(toCallTarget(source, expr.get()));
                         }
                         return builder;
                     }),
-                    seq(exprlist, ref(SelfTokenId.RPAREN), (expr, rparen) -> {
-                        return SelfObject.newBuilder().code(toCallTarget(expr));
+                    seq(exprlist, ref(SelfTokenId.RPAREN, (s, t) -> s), (expr, src) -> {
+                        return SelfObject.newBuilder().code(toCallTarget(src, expr));
                     }),
-                    ref(SelfTokenId.RPAREN, (rparen) -> SelfObject.newBuilder())
+                    ref(SelfTokenId.RPAREN, (src, rparen) -> SelfObject.newBuilder())
                 ),
                 (t, u) -> {
                     return u.build();
@@ -170,7 +170,7 @@ final class SelfParser {
 
         Element<SelfObject> blockStatement = seq(
                 ref(SelfTokenId.LBRACKET), alt(
-                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RBRACKET), (bar, slts, expr, rparen) -> {
+                    seq(ref(SelfTokenId.BAR), slotsDef, opt(exprlist), ref(SelfTokenId.RBRACKET, (src, t) -> src), (bar, slts, expr, source) -> {
                         SelfObject.Builder builder = SelfObject.newBuilder();
                         while (slts != null) {
                             if (slts.item.argument) {
@@ -181,14 +181,14 @@ final class SelfParser {
                             slts = slts.prev;
                         }
                         if (expr.isPresent()) {
-                            builder.code(toCallTarget(expr.get()));
+                            builder.code(toCallTarget(source, expr.get()));
                         }
                         return builder;
                     }),
-                    seq(exprlist, ref(SelfTokenId.RBRACKET), (expr, rparen) -> {
-                        return SelfObject.newBuilder().code(toCallTarget(expr));
+                    seq(exprlist, ref(SelfTokenId.RBRACKET, (s, t) -> s), (expr, src) -> {
+                        return SelfObject.newBuilder().code(toCallTarget(src, expr));
                     }),
-                    ref(SelfTokenId.RBRACKET, (rparen) -> SelfObject.newBuilder())
+                    ref(SelfTokenId.RBRACKET, (s, t) -> SelfObject.newBuilder())
                 ),
                 (t, u) -> {
                     return u.block(true).build();
@@ -200,13 +200,13 @@ final class SelfParser {
         statement.define(alt(constant));
 
         final Element<SelfObject> constantDef = alt(
-            ref(SelfTokenId.BOOLEAN, (t) -> {
+            ref(SelfTokenId.BOOLEAN, (s, t) -> {
                 return primitives.valueOf(Boolean.valueOf(t.text().toString()));
             }),
-            ref(SelfTokenId.STRING, (t) -> {
+            ref(SelfTokenId.STRING, (s, t) -> {
                 return primitives.valueOf(t.text().toString());
             }),
-            ref(SelfTokenId.NUMBER, (t) -> {
+            ref(SelfTokenId.NUMBER, (s, t) -> {
                 return primitives.valueOf(Integer.valueOf(t.text().toString()));
             }),
             objectLiteral
@@ -300,8 +300,8 @@ final class SelfParser {
         parser.initialize(exprlist);
     }
 
-    private CallTarget toCallTarget(SelfCode code) {
-        return SelfCode.toCallTarget(lang, code);
+    private CallTarget toCallTarget(Source src, SelfCode code) {
+        return SelfCode.toCallTarget(lang, src, code);
     }
 
     private static class IdArg {
@@ -357,6 +357,11 @@ final class SelfParser {
             private boolean eof;
             {
                 nextTokenMove(null);
+            }
+
+            @Override
+            public Source getSource() {
+                return s;
             }
 
             @Override

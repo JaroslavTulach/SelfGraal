@@ -439,7 +439,7 @@ final class SelfLexer implements Lexer<SelfTokenId> {
             return null;
         }
 
-        public static <T> ListItem<T> empty(Object ignore) {
+        public static <T> ListItem<T> empty(Object ignore1, Object ignore2) {
             return null;
         }
 

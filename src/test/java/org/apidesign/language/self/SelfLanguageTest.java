@@ -212,8 +212,16 @@ public class SelfLanguageTest {
         Assert.assertEquals(4, four.asInt());
         Value thirteen = arith.invokeMember("+", 6, 7);
         Assert.assertEquals(13, thirteen.asInt());
+
+        Debugger dbg = Debugger.find(ctx.getEngine());
+        SuspendedEvent[] breakpointHit = {null};
+        final DebuggerSession session = dbg.startSession((event) -> {
+            breakpointHit[0] = event;
+        });
+        session.suspendNextExecution();
         Value all = arith.invokeMember("x:Y:Z:", 6, 7, 7);
         Assert.assertEquals(20, all.asInt());
+        assertNotNull("Event delivered", breakpointHit[0]);
     }
 
     @Test

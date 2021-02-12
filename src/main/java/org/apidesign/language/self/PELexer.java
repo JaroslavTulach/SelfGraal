@@ -41,10 +41,12 @@
 package org.apidesign.language.self;
 
 import com.oracle.truffle.api.profiles.ConditionProfile;
+import com.oracle.truffle.api.source.Source;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.api.lexer.TokenId;
 
 interface PELexer<T> {
+    public Source getSource();
 
     public Object[] asArgumentsArray();
 

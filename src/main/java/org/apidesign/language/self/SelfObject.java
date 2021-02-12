@@ -143,7 +143,7 @@ class SelfObject implements Cloneable, TruffleObject {
         }
 
         Builder code(SelfLanguage lang, BiFunction<SelfObject, Object[], SelfObject> fn) {
-            code = SelfCode.toCallTarget(lang, SelfCode.compute(fn));
+            code = SelfCode.toCallTarget(lang, null, SelfCode.compute(fn));
             return this;
         }
 

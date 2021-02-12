@@ -87,7 +87,7 @@ final class SelfInterop {
             for (int i = 0; i < arity; i++) {
                 values[i] = SelfCode.convertArgument(lang.getPrimitives(), i);
             }
-            final SelfCode msg = SelfCode.keywordMessage(receiver, selector, values);
+            final SelfCode msg = SelfCode.keywordMessage(0, 0, receiver, selector, values);
             return msg;
         }
     }

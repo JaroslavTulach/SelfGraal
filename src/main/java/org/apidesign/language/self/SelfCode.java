@@ -44,19 +44,52 @@ import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.instrumentation.GenerateWrapper;
+import com.oracle.truffle.api.instrumentation.InstrumentableNode;
+import com.oracle.truffle.api.instrumentation.ProbeNode;
+import com.oracle.truffle.api.instrumentation.StandardTags;
+import com.oracle.truffle.api.instrumentation.Tag;
 import com.oracle.truffle.api.interop.UnknownIdentifierException;
 import com.oracle.truffle.api.nodes.ExplodeLoop;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
+import com.oracle.truffle.api.source.Source;
+import com.oracle.truffle.api.source.SourceSection;
 import java.util.function.BiFunction;
 
-abstract class SelfCode extends Node {
-
+@GenerateWrapper
+abstract class SelfCode extends Node implements InstrumentableNode {
     abstract SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args);
+    abstract int offset();
+    abstract int length();
 
+    @Override
+    public boolean isInstrumentable() {
+        return true;
+    }
+
+    @Override
+    public SourceSection getSourceSection() {
+        final RootNode rn = getRootNode();
+        Source src;
+        if (rn instanceof SelfSource) {
+            src = ((SelfSource)rn).source;
+        } else if (rn instanceof SelfCode.Root) {
+            src = ((SelfCode.Root)rn).source;
+        } else {
+            src = null;
+        }
+        return src == null ? null : src.createSection(offset(), length());
+    }
+
+    @Override
+    public WrapperNode createWrapper(ProbeNode probe) {
+        return new SelfCodeWrapper(this, probe);
+    }
+    
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode constant(SelfObject obj) {
-        return new Constant(obj);
+    static SelfCode constant(int offset, int length, SelfObject obj) {
+        return new Constant(offset, length, obj);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -75,18 +108,18 @@ abstract class SelfCode extends Node {
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode unaryMessage(SelfCode receiver, SelfSelector message) {
-        return new Message(receiver, message);
+    static SelfCode unaryMessage(int offset, int length, SelfCode receiver, SelfSelector message) {
+        return new Message(offset, length, receiver, message);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode binaryMessage(SelfCode receiver, SelfSelector message, SelfCode arg) {
-        return new Message(receiver, message, arg);
+    static SelfCode binaryMessage(int offset, int length, SelfCode receiver, SelfSelector message, SelfCode arg) {
+        return new Message(offset, length, receiver, message, arg);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
-    static SelfCode keywordMessage(SelfCode receiver, SelfSelector selector, SelfCode... args) {
-        return new Message(receiver, selector, args);
+    static SelfCode keywordMessage(int offset, int length, SelfCode receiver, SelfSelector selector, SelfCode... args) {
+        return new Message(offset, length, receiver, selector, args);
     }
 
     @CompilerDirectives.TruffleBoundary(allowInlining = true)
@@ -96,8 +129,12 @@ abstract class SelfCode extends Node {
 
     private static class Constant extends SelfCode {
         private final SelfObject obj;
+        private final int offset;
+        private final int length;
 
-        Constant(SelfObject obj) {
+        Constant(int offset, int length, SelfObject obj) {
+            this.offset = offset;
+            this.length = length;
             this.obj = obj;
         }
 
@@ -110,12 +147,32 @@ abstract class SelfCode extends Node {
         public String toString() {
             return "[Constant=" + obj + "]";
         }
+
+        @Override
+        int offset() {
+            return offset;
+        }
+
+        @Override
+        int length() {
+            return length;
+        }
     }
 
     private static class Self extends SelfCode {
         @Override
         SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             return self;
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -125,8 +182,12 @@ abstract class SelfCode extends Node {
         @Children
         private SelfCode[] args;
         private final SelfSelector message;
+        private final int length;
+        private final int offset;
 
-        Message(SelfCode receiver, SelfSelector message, SelfCode... args) {
+        Message(int offset, int length, SelfCode receiver, SelfSelector message, SelfCode... args) {
+            this.offset = offset;
+            this.length = length;
             this.receiver = receiver;
             this.message = message;
             this.args = args;
@@ -146,6 +207,21 @@ abstract class SelfCode extends Node {
             }
             return msg.evalSelf(obj, values);
         }
+
+        @Override
+        int offset() {
+            return offset;
+        }
+
+        @Override
+        int length() {
+            return length;
+        }
+
+        @Override
+        public boolean hasTag(Class<? extends Tag> tag) {
+            return tag == StandardTags.StatementTag.class;
+        }
     }
 
     private static class Block extends SelfCode {
@@ -155,6 +231,8 @@ abstract class SelfCode extends Node {
         Block(SelfCode[] children) {
             this.children = children;
         }
+        
+        
 
         @ExplodeLoop
         @Override
@@ -164,6 +242,16 @@ abstract class SelfCode extends Node {
                 res = children[i].executeMessage(frame, self);
             }
             return res;
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -177,6 +265,16 @@ abstract class SelfCode extends Node {
         @Override
         SelfObject executeMessage(VirtualFrame frame, SelfObject self, Object... args) {
             return fn.apply(self, null);
+        }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
         }
     }
 
@@ -201,19 +299,32 @@ abstract class SelfCode extends Node {
             }
             return (SelfObject) value;
         }
+
+        @Override
+        int offset() {
+            return 0;
+        }
+
+        @Override
+        int length() {
+            return 0;
+        }
     }
 
-    static CallTarget toCallTarget(final SelfLanguage l, SelfCode code) {
-        RootNode root = new SelfCode.Root(l, code);
+    static CallTarget toCallTarget(final SelfLanguage l, Source src, SelfCode code) {
+        RootNode root = new SelfCode.Root(l, src, code);
         return Truffle.getRuntime().createCallTarget(root);
     }
 
 
-    static final class Root extends RootNode {
-        private final SelfCode code;
+    static final class Root extends RootNode implements InstrumentableNode {
+        @Child
+        private SelfCode code;
+        private final Source source;
 
-        private Root(SelfLanguage language, SelfCode code) {
+        private Root(SelfLanguage language, Source src, SelfCode code) {
             super(language);
+            this.source = src;
             this.code = code;
         }
 
@@ -228,6 +339,16 @@ abstract class SelfCode extends Node {
             }
             SelfObject result = code.executeMessage(frame, methodActivation, values);
             return result;
+        }
+
+        @Override
+        public boolean isInstrumentable() {
+            return code.isInstrumentable();
+        }
+
+        @Override
+        public WrapperNode createWrapper(ProbeNode probe) {
+            return null;
         }
 
     }

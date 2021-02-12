@@ -40,6 +40,9 @@
  */
 package org.apidesign.language.self;
 
+import com.oracle.truffle.api.debug.Debugger;
+import com.oracle.truffle.api.debug.DebuggerSession;
+import com.oracle.truffle.api.debug.SuspendedEvent;
 import java.io.IOException;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.PolyglotException;
@@ -48,6 +51,8 @@ import org.graalvm.polyglot.Value;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Assume;
 import org.junit.Before;
@@ -68,7 +73,9 @@ public class SelfLanguageTest {
 
     @Test
     public void evalFalse() {
-        Object no = Context.create().eval("Self", "false").asBoolean();
+        final Context ctx = Context.create();
+        final Value falseValue = ctx.eval("Self", "false");
+        Object no = falseValue.asBoolean();
         Assert.assertEquals(Boolean.FALSE, no);
     }
 
@@ -160,8 +167,26 @@ public class SelfLanguageTest {
     @Test
     public void evalMultiKeywordMessageWithInObjectArgs4() {
         final Context ctx = Context.create();
-        Value res = ctx.eval("Self", "( | plus:And:By:Yet: = ( | :n. :m. :o. :p | (m + n) + (o + p) ) | ) plus: 2 And: 1 By: 1 Yet: 1");
+        Debugger dbg = Debugger.find(ctx.getEngine());
+        SuspendedEvent[] breakpointHit = { null };
+        final DebuggerSession session = dbg.startSession((event) -> {
+            breakpointHit[0] = event;
+        });
+        session.suspendNextExecution();
+        Source plusPlus = Source.newBuilder(
+            "Self", ""
+            + "( | \n"
+            + "    plus:And:By:Yet: = ( \n"
+            + "        | :n. :m. :o. :p |\n"
+            + "            (m + n)\n"
+            + "            +\n"
+            + "            (o + p)\n"
+            + "    )\n"
+            + "| ) plus: 2 And: 1 By: 1 Yet: 1", "PlusPlus.self"
+        ).buildLiteral();
+        Value res = ctx.eval(plusPlus);
         Assert.assertEquals(5, res.asInt());
+        assertNotNull("Event delivered", breakpointHit[0]);
     }
 
     @Test
@@ -187,8 +212,16 @@ public class SelfLanguageTest {
         Assert.assertEquals(4, four.asInt());
         Value thirteen = arith.invokeMember("+", 6, 7);
         Assert.assertEquals(13, thirteen.asInt());
+
+        Debugger dbg = Debugger.find(ctx.getEngine());
+        SuspendedEvent[] breakpointHit = {null};
+        final DebuggerSession session = dbg.startSession((event) -> {
+            breakpointHit[0] = event;
+        });
+        session.suspendNextExecution();
         Value all = arith.invokeMember("x:Y:Z:", 6, 7, 7);
         Assert.assertEquals(20, all.asInt());
+        assertNotNull("Event delivered", breakpointHit[0]);
     }
 
     @Test
